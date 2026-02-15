@@ -1,0 +1,39 @@
+{
+  "name": "web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/web/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/next:build",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/web"
+      }
+    },
+    "serve": {
+      "executor": "@nx/next:server",
+      "options": {
+        "buildTarget": "web:build",
+        "dev": true,
+        "port": 3000
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "web:build:development",
+          "dev": true
+        },
+        "production": {
+          "buildTarget": "web:build:production",
+          "dev": false
+        }
+      }
+    },
+    "serve-static": {
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "web:build"
+      }
+    }
+  }
+}
