@@ -1,0 +1,20 @@
+{
+  "targets": {
+    "build": {
+      "dependsOn": [
+        {
+          "target": "generate",
+          "projects": "prisma"
+        }
+      ]
+    },
+    "serve": {
+      "dependsOn": [
+        {
+          "target": "generate",
+          "projects": "prisma"
+        }
+      ]
+    }
+  }
+}
