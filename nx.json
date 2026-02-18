@@ -64,3 +64,61 @@
     }
   }
 }
+// {
+//   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+//   "targetDefaults": {
+//     "build": {
+//       "dependsOn": ["^build"],
+//       "inputs": ["production", "^production"]
+//     }
+//   },
+//   "namedInputs": {
+//     "default": ["{projectRoot}/**/*", "sharedGlobals"],
+//     "production": [
+//       "default",
+//       "!{projectRoot}/**/*.spec.[jt]s?(x)",
+//       "!{projectRoot}/**/*.test.[jt]s?(x)",
+//       "!{projectRoot}/**/*.stories.[jt]s?(x)",
+//       "!{projectRoot}/.eslintrc.json",
+//       "!{projectRoot}/jest.config.[jt]s",
+//       "!{projectRoot}/tsconfig.spec.json"
+//     ],
+//     "development": ["default"]
+//   },
+//   "plugins": [
+//     {
+//       "plugin": "@nx/next/plugin",
+//       "options": {
+//         "buildTargetName": "build",
+//         "devTargetName": "serve",
+//         "startTargetName": "start"
+//       }
+//     },
+//     {
+//       "plugin": "@nx/eslint/plugin",
+//       "options": {
+//         "targetName": "lint"
+//       }
+//     }
+//   ],
+//   "tasksRunnerOptions": {
+//     "default": {
+//       "runner": "default",
+//       "options": {
+//         "cacheableOperations": ["build", "lint", "test", "e2e"]
+//       }
+//     }
+//   },
+//   "workspaceLayout": {
+//     "appsDir": "apps",
+//     "libsDir": "libs"
+//   },
+//   "generators": {
+//     "@nx/next": {
+//       "application": {
+//         "style": "css",
+//         "linter": "eslint"
+//       }
+//     }
+//   }
+// }

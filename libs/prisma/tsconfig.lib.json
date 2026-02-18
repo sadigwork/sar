@@ -7,8 +7,18 @@
     "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
     "emitDeclarationOnly": false,
     "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
+  "files": [],
   "include": ["src/**/*.ts"],
-  "references": []
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    }
+  ]
 }
