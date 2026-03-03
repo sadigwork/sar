@@ -9,11 +9,13 @@ import { AppModule } from './app/app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const globalPrefix = 'api';
+  app.use(cookieParser());
   app.setGlobalPrefix(globalPrefix);
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
@@ -24,6 +26,10 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.enableCors({
+    origin: 'http://localhost:3001', // السماح فقط من هذا المصدر
+    credintials: true, // السماح بإرسال الكوكيز
+  });
 
   // إعداد Swagger
   const config = new DocumentBuilder()
