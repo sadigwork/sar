@@ -6,14 +6,18 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 // import { UsersModule } from '@sacrs/domain/profile/src/index';
 import { UsersModule } from '../../../profile/src/index';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     PassportModule,
     UsersModule,
-    JwtModule.register({
-      secret: 'SUPER_SECRET_KEY',
-      signOptions: { expiresIn: '1d' },
+    JwtModule.registerAsync({
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<String>('JWT_ACCESS_SECRET'),
+        signOptions: { expiresIn: config.get<String>('JWT_ACCESS_EXPIRES') },
+      }),
+      inject: [ConfigService],
     }),
   ],
   controllers: [AuthController],
