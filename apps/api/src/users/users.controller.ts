@@ -6,8 +6,14 @@ import {
   Patch,
   Param,
   Delete,
+  UseGuards,
 } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { UsersService, Role } from '../../../../libs/domain/profile/src/index';
+import {
+  JwtAuthGuard,
+  RolesGuard,
+  Roles,
+} from '../../../../libs/domain/auth/src/index';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -16,11 +22,13 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  create(@Body() dot: CreateUserDto) {
+    return this.usersService.create(dot);
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.MANAGER)
   findAll() {
     return this.usersService.findAll();
   }
@@ -31,23 +39,12 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(+id, updateUserDto);
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+    return this.usersService.update(+id, dto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.usersService.remove(+id);
-  }
-  @Get('test')
-  async test() {
-    return {
-      status: 'ok',
-      message: 'API is working',
-    };
-  }
-  @Get('db-test')
-  testDb() {
-    return this.usersService.testDb();
   }
 }

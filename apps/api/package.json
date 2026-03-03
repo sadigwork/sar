@@ -2,92 +2,86 @@
   "name": "@sacrs/api",
   "version": "0.0.1",
   "private": true,
-  "nx": {
-    "name": "api",
-    "targets": {
-      "build": {
-        "executor": "nx:run-commands",
-        "options": {
-          "command": "webpack-cli build",
-          "args": [
-            "--node-env=production"
-          ],
-          "cwd": "apps/api"
-        },
-        "configurations": {
-          "development": {
-            "args": [
-              "--node-env=development"
-            ]
-          }
-        }
-      },
-      "prune-lockfile": {
-        "dependsOn": [
-          "build"
-        ],
-        "cache": true,
-        "executor": "@nx/js:prune-lockfile",
-        "outputs": [
-          "{workspaceRoot}/apps/api/dist/package.json",
-          "{workspaceRoot}/apps/api/dist/package-lock.json"
-        ],
-        "options": {
-          "buildTarget": "build"
-        }
-      },
-      "copy-workspace-modules": {
-        "dependsOn": [
-          "build"
-        ],
-        "cache": true,
-        "outputs": [
-          "{workspaceRoot}/apps/api/dist/workspace_modules"
-        ],
-        "executor": "@nx/js:copy-workspace-modules",
-        "options": {
-          "buildTarget": "build"
-        }
-      },
-      "prune": {
-        "dependsOn": [
-          "prune-lockfile",
-          "copy-workspace-modules"
-        ],
-        "executor": "nx:noop"
-      },
-      "serve": {
-        "continuous": true,
-        "executor": "@nx/js:node",
-        "defaultConfiguration": "development",
-        "dependsOn": [
-          "build"
-        ],
-        "options": {
-          "buildTarget": "api:build",
-          "runBuildTargetDependencies": false
-        },
-        "configurations": {
-          "development": {
-            "buildTarget": "api:build:development"
-          },
-          "production": {
-            "buildTarget": "api:build:production"
-          }
-        }
-      }
-    }
+  "scripts": {
+    "build": "nx build api",
+    "serve": "nx serve api",
+    "lint": "nx lint api",
+    "test": "nx test api"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
-    "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/mapped-types": "*",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@nestjs/testing": "^11.0.0"
+    "@nestjs/testing": "^11.0.0",
+    "@nx/js": "^16.0.0",
+    "@nx/webpack": "^16.0.0",
+    "typescript": "^5.2.2",
+    "ts-node": "^10.9.1",
+    "webpack": "^5.105.2",
+    "webpack-cli": "^5.1.0"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "@nx/webpack:webpack",
+        "outputs": [
+          "dist/apps/api"
+        ],
+        "dependsOn": [
+          {
+            "target": "generate",
+            "projects": "prisma"
+          }
+        ],
+        "options": {
+          "outputPath": "dist/apps/api",
+          "main": "apps/api/src/main.ts",
+          "tsConfig": "apps/api/tsconfig.app.json",
+          "assets": [
+            "apps/api/src/assets"
+          ],
+          "compiler": "tsc",
+          "externalDependencies": "none",
+          "mode": "development"
+        },
+        "configurations": {
+          "production": {
+            "mode": "production"
+          }
+        }
+      },
+      "serve": {
+        "executor": "@nx/webpack:webpack",
+        "dependsOn": [
+          {
+            "target": "generate",
+            "projects": "prisma"
+          }
+        ],
+        "options": {
+          "watch": true,
+          "outputPath": "dist/apps/api",
+          "main": "apps/api/src/main.ts",
+          "tsConfig": "apps/api/tsconfig.app.json",
+          "assets": [
+            "apps/api/src/assets"
+          ],
+          "compiler": "tsc",
+          "externalDependencies": "none",
+          "mode": "development"
+        },
+        "configurations": {
+          "production": {
+            "mode": "production"
+          }
+        }
+      }
+    }
   }
 }

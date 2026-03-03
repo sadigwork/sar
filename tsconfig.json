@@ -14,6 +14,15 @@
     },
     {
       "path": "./libs/prisma"
+    },
+    {
+      "path": "./libs/domain"
+    },
+    {
+      "path": "./libs/domain/profile"
+    },
+    {
+      "path": "./libs/domain/auth"
     }
   ]
 }

@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
+import { UsersModule as DomainUsersModule } from '../../../../libs/domain/profile/src/index';
 
 @Module({
+  imports: [DomainUsersModule],
   controllers: [UsersController],
-  providers: [UsersService],
 })
 export class UsersModule {}

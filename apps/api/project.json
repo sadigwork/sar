@@ -1,20 +1,36 @@
 {
+  "name": "api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "targets": {
     "build": {
-      "dependsOn": [
-        {
-          "target": "generate",
-          "projects": "prisma"
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "webpack-cli build",
+        "cwd": "apps/api",
+        "args": []
+      },
+      "configurations": {
+        "development": {
+          "args": ["--mode=development"]
+        },
+        "production": {
+          "args": ["--mode=production"]
         }
-      ]
+      }
     },
     "serve": {
-      "dependsOn": [
-        {
-          "target": "generate",
-          "projects": "prisma"
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "api:build:development"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "api:build:development"
+        },
+        "production": {
+          "buildTarget": "api:build:production"
         }
-      ]
+      }
     }
   }
 }

@@ -17,7 +17,7 @@ export class PrismaService
   constructor() {
     super({
       log:
-        process.env.NODE_ENV === 'development'
+        process.env['NODE_ENV'] === 'development'
           ? ['query', 'info', 'warn', 'error']
           : ['error'],
     });
@@ -33,7 +33,7 @@ export class PrismaService
     this.logger.log('🔌 Disconnected from database');
   }
   async cleanDatabase() {
-    if (process.env.NODE_ENV === 'production') return;
+    if (process.env['NODE_ENV'] === 'production') return;
     // محو قاعدة البيانات للتطوير (اختياري)
     const models = Reflect.ownKeys(this).filter((key) => key[0] !== '_');
     return Promise.all(models.map((modelKey) => this[modelKey].deleteMany()));
