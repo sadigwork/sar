@@ -1,0 +1,20 @@
+{
+  "name": "auth",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/domain/auth/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nrwl/node:package",
+      "outputs": ["{workspaceRoot}/dist/libs/domain/auth"],
+      "options": {
+        "outputPath": "dist/libs/domain/auth",
+        "tsConfig": "libs/domain/auth/tsconfig.lib.json",
+        "packageJson": "libs/domain/auth/package.json",
+        "main": "libs/domain/auth/src/index.ts",
+        "assets": ["libs/domain/auth/*.md"]
+      }
+    }
+  }
+}

@@ -33,7 +33,7 @@ async function bootstrap() {
 
   // إعداد Swagger
   const config = new DocumentBuilder()
-    .setTitle('')
+    .setTitle('PRMS API')
     .setDescription('SAC Registration API documentation')
     .setVersion('0.1')
     .addBearerAuth() // نصيحة: أضف هذا إذا كنت ستستخدم JWT لاحقاً
