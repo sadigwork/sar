@@ -27,8 +27,9 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: 'http://localhost:3001', // السماح فقط من هذا المصدر
-    credintials: true, // السماح بإرسال الكوكيز
+    origin: ['http://localhost:3001'], // السماح فقط من هذا المصدر
+    credentials: true, // السماح بإرسال الكوكيز
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // السماح بكل الطرق
   });
 
   // إعداد Swagger

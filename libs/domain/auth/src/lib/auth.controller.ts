@@ -15,7 +15,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   // =======================
-  // Create User with role
+  // Create User with role (ADMIN ONLY)
   // =======================
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -30,12 +30,16 @@ export class AuthController {
   @Post('register')
   @SwaggerRegister()
   async register(
-    @Body() dto: RegisterDto, dto.role,
+    @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const tokens = await this.authService.register(dto);
-    this.setCookies(res, tokens);
-    return { message: 'User registered successfully' };
+    const result = await this.authService.register(dto, dto.role);
+
+    if (result.tokens) {
+      this.setCookies(res, result.tokens);
+    }
+
+    return result;
   }
 
   // =======================
@@ -47,9 +51,13 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const tokens = await this.authService.login(dto);
-    this.setCookies(res, tokens);
-    return { message: 'Logged in successfully' };
+    const result = await this.authService.login(dto);
+
+    // وضع التوكن في cookies
+    this.setCookies(res, result.tokens);
+
+    // إعادة user + tokens للـ frontend
+    return result;
   }
 
   // =======================
@@ -61,9 +69,15 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const refreshToken = req.cookies['refresh_token'];
+
     const tokens = await this.authService.refreshToken(refreshToken);
+
     this.setCookies(res, tokens);
-    return { message: 'Tokens refreshed' };
+
+    return {
+      message: 'Tokens refreshed',
+      tokens,
+    };
   }
 
   // =======================
@@ -73,6 +87,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const user = req.user as any;
+
     await this.authService.logout(user.sub);
 
     res.clearCookie('access_token');
@@ -82,7 +97,7 @@ export class AuthController {
   }
 
   // =======================
-  // PRIVATE HELPER: SET COOKIES
+  // PRIVATE: SET COOKIES
   // =======================
   private setCookies(
     res: Response,
@@ -92,45 +107,14 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 دقائق
+      maxAge: 15 * 60 * 1000,
     });
 
     res.cookie('refresh_token', tokens.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 أيام
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }
 }
-// import { Controller, Post, Body, UseGuards } from '@nestjs/common';
-// import { AuthService } from './auth.service';
-// import { LoginDto } from './dto/login.dto';
-// import { RegisterDto } from './dto/register.dto';
-// import { JwtAuthGuard } from './guards/jwt-auth.guard';
-// import { Request } from '@nestjs/common';
-
-// @Controller('auth')
-// export class AuthController {
-//   constructor(private readonly authService: AuthService) {}
-
-//   @Post('login')
-//   login(@Body() dto: LoginDto) {
-//     return this.authService.login(dto);
-//   }
-
-//   @Post('register')
-//   register(@Body() dto: RegisterDto) {
-//     return this.authService.register(dto);
-//   }
-//   @Post('refresh')
-//   refresh(@Body() body: { refresh_token: string }) {
-//     return this.authService.refresh(body.refresh_token);
-//   }
-
-//   @UseGuards(JwtAuthGuard)
-//   @Post('logout')
-//   logout(@Request() req) {
-//     return this.authService.logout(req.user.id);
-//   }
-// }

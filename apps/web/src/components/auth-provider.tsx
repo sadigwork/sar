@@ -14,8 +14,9 @@ type Role = 'user' | 'reviewer' | 'admin' | 'registrar';
 
 type User = {
   id: string;
-  name: string;
   email: string;
+  firstName: string;
+  lastName: string;
   role: Role;
 };
 
@@ -36,16 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   /**
-   * Restore session on page refresh
+   * Restore session on refresh
    */
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('accessToken');
 
-    if (storedUser) {
+    if (storedUser && token) {
       try {
         setUser(JSON.parse(storedUser));
       } catch {
         localStorage.removeItem('user');
+        localStorage.removeItem('accessToken');
       }
     }
 
@@ -63,10 +66,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
       });
+      console.log('LOGIN RESPONSE', res);
 
-      const user: User = res.user;
+      const user: User = res.data?.user || res.user;
+      const token = res.data?.tokens?.access_token || res.tokens?.access_token;
+
+      if (!user || !token) {
+        console.error('Login successful', res);
+        throw new Error('Invalid login response');
+      }
 
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('accessToken', token);
 
       setUser(user);
 
@@ -110,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {}
 
     localStorage.removeItem('user');
+    localStorage.removeItem('accessToken');
 
     setUser(null);
 
@@ -120,22 +132,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * Role based redirect
    */
   const redirectByRole = (role: Role) => {
-    if (role === 'admin') {
-      router.push('/admin/dashboard');
-      return;
-    }
+    switch (role) {
+      case 'admin':
+        router.push('/admin/dashboard');
+        break;
 
-    if (role === 'reviewer') {
-      router.push('/reviewer/dashboard');
-      return;
-    }
+      case 'reviewer':
+        router.push('/reviewer/dashboard');
+        break;
 
-    if (role === 'registrar') {
-      router.push('/registrar/dashboard');
-      return;
-    }
+      case 'registrar':
+        router.push('/registrar/dashboard');
+        break;
 
-    router.push('/dashboard');
+      default:
+        router.push('/dashboard');
+    }
   };
 
   return (

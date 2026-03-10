@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../../../infrastructure/prisma/src/lib/prisma.service';
-import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
@@ -14,15 +13,15 @@ export class UsersService {
     password: string;
     firstName: string;
     lastName: string;
+    role?: string;
   }) {
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-
     return this.prisma.user.create({
       data: {
         email: data.email,
-        password: hashedPassword,
+        password: data.password, // 🔥 لا نقوم بالـ hash هنا
         firstName: data.firstName,
         lastName: data.lastName,
+        role: data.role ?? 'user',
       },
       select: {
         id: true,
@@ -61,16 +60,6 @@ export class UsersService {
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
     });
 
     if (!user) {
@@ -81,7 +70,7 @@ export class UsersService {
   }
 
   // ================================
-  // FIND USER BY EMAIL (مهم للـ Auth)
+  // FIND USER BY EMAIL
   // ================================
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
@@ -101,6 +90,7 @@ export class UsersService {
       password: string;
       role: string;
       isActive: boolean;
+      refreshToken: string | null;
     }>,
   ) {
     const existingUser = await this.prisma.user.findUnique({
@@ -111,23 +101,9 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    if (data.password) {
-      data.password = await bcrypt.hash(data.password, 10);
-    }
-
     return this.prisma.user.update({
       where: { id },
       data,
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
     });
   }
 
@@ -145,16 +121,6 @@ export class UsersService {
 
     return this.prisma.user.delete({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
     });
   }
 }

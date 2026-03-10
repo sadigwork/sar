@@ -1,21 +1,3 @@
-// 'use client';
-
-// import { useEffect } from 'react';
-// import { useRouter } from 'next/navigation';
-// import { api } from '../api/client';
-
-// export default function DashboardPage() {
-//   const router = useRouter();
-
-//   useEffect(() => {
-//     api.get('/users/me').catch(() => {
-//       router.push('/login');
-//     });
-//   }, []);
-
-//   return <div>Dashboard</div>;
-// }
-
 'use client';
 
 import { useEffect, useState } from 'react';

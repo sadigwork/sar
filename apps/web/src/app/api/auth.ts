@@ -1,5 +1,6 @@
-import { refresh } from 'next/cache';
-import { api } from './client';
+// import { refresh } from 'next/cache';
+// import { api } from './client';
+import axios from 'axios';
 
 export interface LoginDto {
   email: String;
@@ -11,9 +12,15 @@ export interface RegisterDto {
   name: String;
 }
 
+export const api = axios.create({
+  baseURL: 'http://localhost:3000/api',
+  withCredentials: true,
+});
+
 export const AuthApi = {
   login: async (data: LoginDto) => {
     const response = await api.post('/auth/login', data);
+    console.log('API RESPONSE ', response.data);
     return response.data;
   },
   register: async (data: RegisterDto) => {
