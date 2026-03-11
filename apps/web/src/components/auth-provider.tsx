@@ -10,7 +10,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { AuthApi } from '@/app/api/auth';
 
-type Role = 'user' | 'reviewer' | 'admin' | 'registrar';
+type Role = 'User' | 'Reviewer' | 'Admin' | 'Registrar';
 
 type User = {
   id: string;
@@ -22,6 +22,7 @@ type User = {
 
 type AuthContextType = {
   user: User | null;
+  setUser: (user: User | null) => avoid;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -154,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        setUser,
         isLoading,
         login,
         logout,

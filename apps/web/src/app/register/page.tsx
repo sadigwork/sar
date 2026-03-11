@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/components/language-provider';
 import { useAuth } from '@/components/auth-provider';
 import { AuthApi } from '../api/auth';
+import { getApiErrorMessage } from '../../lib/api-error';
 
 const formSchema = z
   .object({
@@ -62,14 +63,22 @@ export default function RegisterPage() {
         lastName: values.name.split(' ').slice(1).join(' ') || '-',
         email: values.email,
         password: values.password,
-        role: 'USER',
+        role: 'User',
       });
 
-      // نحفظ الـ token وبيانات المستخدم
-      localStorage.setItem('token', response.accessToken);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      console.log('REGISTER RESPONSE:', response);
 
-      setUser(response.user); // تحديث الـ context
+      const result = response.data;
+
+      if (!result?.user || !result?.tokens) {
+        throw new Error('Invalid registration response');
+      }
+      // نحفظ الـ token وبيانات المستخدم
+      localStorage.setItem('accessToken', result.tokens.access_token);
+      localStorage.setItem('user', JSON.stringify(result.user));
+
+      setUser(result.user); // تحديث الـ context
+      // await login(values.email, values.password); // تسجيل الدخول بعد التسجيل
 
       toast({
         title:
@@ -83,11 +92,11 @@ export default function RegisterPage() {
       });
 
       // توجيه تلقائي بناءً على الدور
-      if (response.user.role === 'admin') {
+      if (result.user.role === 'Admin') {
         router.push('/admin/dashboard');
-      } else if (response.user.role === 'reviewer') {
+      } else if (result.user.role === 'Reviewer') {
         router.push('/reviewer/dashboard');
-      } else if (response.user.role === 'registrar') {
+      } else if (result.user.role === 'Registrar') {
         router.push('/registrar/dashboard');
       } else {
         router.push('/dashboard');
@@ -95,13 +104,13 @@ export default function RegisterPage() {
     } catch (error: any) {
       toast({
         title: t('language') === 'en' ? 'Registration failed' : 'فشل التسجيل',
-        description:
-          error?.response?.data?.message ||
-          (t('language') === 'en'
-            ? 'Please try again later'
-            : 'يرجى المحاولة مرة أخرى لاحقًا'),
+        description: getApiErrorMessage(error),
+        // (t('language') === 'en'
+        //   ? 'Please try again later'
+        //   : 'يرجى المحاولة مرة أخرى لاحقًا'),
         variant: 'destructive',
       });
+      console.error('Registration error:', error);
     } finally {
       setIsLoading(false);
     }
