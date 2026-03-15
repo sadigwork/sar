@@ -8,7 +8,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { SwaggerRegister, SwaggerLogin } from './auth.swagger';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './guards/roles.decorator';
-import { Role } from '../../../profile/src';
+import { Role } from '../../../users/index';
 
 @Controller('auth')
 export class AuthController {

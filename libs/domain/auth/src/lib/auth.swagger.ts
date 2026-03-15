@@ -2,7 +2,7 @@ import { applyDecorators } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { Role } from '../../../profile/src/index';
+import { Role } from '../../../users/index';
 
 export const SwaggerRegister = () =>
   applyDecorators(

@@ -1,5 +1,5 @@
 // src/auth/dto/create-user.dto.ts
-import { Role } from '../../../../profile/src/index';
+import { Role } from '../../../../users/index';
 import { IsEmail, IsEnum, IsNotEmpty, MinLength } from 'class-validator';
 
 export class CreateUserDto {

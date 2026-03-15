@@ -6,7 +6,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Role } from '../../../../profile/src';
+import { Role } from '../../../../users/index';
 
 export class RegisterDto {
   @ApiProperty({

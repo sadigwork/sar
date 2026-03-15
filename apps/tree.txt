@@ -1,0 +1,360 @@
+����api
+�   �   eslint.config.mjs
+�   �   package.json
+�   �   project.json
+�   �   tsconfig.app.json
+�   �   tsconfig.json
+�   �   webpack.config.js
+�   ����src
+�       �   main.ts
+�       �   
+�       ����app
+�       �   �   app.controller.ts
+�       �   �   app.module.ts
+�       �   �   app.service.ts
+�       �   �   
+�       �   ����services
+�       �           prisma.service.ts
+�       �           
+�       ����assets
+�       �       .gitkeep
+�       �       
+�       ����common
+�       �   ����filters
+�       �   �       http-exception.filter.ts
+�       �   �       
+�       �   ����interceptors
+�       �           response.interceptor.ts
+�       �           
+�       ����users
+�           �   users.controller.spec.ts
+�           �   users.controller.ts
+�           �   users.module.ts
+�           �   
+�           ����dto
+�           �       create-user.dto.ts
+�           �       update-user.dto.ts
+�           �       
+�           ����entities
+�                   user.entity.ts
+�                   
+              
+����web
+    �   .swcrc
+    �   eslint.config.mjs
+    �   exclude.txt
+    �   index.d.ts
+    �   next-env.d.ts
+    �   next.config.js
+    �   package.json
+    �   postcss.config.js
+    �   project.json
+    �   tailwind.config.js
+    �   tsconfig.jso               
+    ����public
+    �       .gitkeep
+    �       favicon.ico
+    �       
+    ����src
+        ����app
+        �   �   global.css
+        �   �   layout.tsx
+        �   �   page.tsx
+        �   �   
+        �   ����about
+        �   �       page.tsx
+        �   �       
+        �   ����admin
+        �   �   ����certifications
+        �   �   �   ����criteria
+        �   �   �   �       page.tsx
+        �   �   �   �       
+        �   �   �   ����levels
+        �   �   �   �       page.tsx
+        �   �   �   �       
+        �   �   �   ����professional
+        �   �   �           loading.tsx
+        �   �   �           page.tsx
+        �   �   �           
+        �   �   ����dashboard
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����fellowships
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����reports
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����settings
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����users
+        �   �           loading.tsx
+        �   �           page.tsx
+        �   �           
+        �   ����api
+        �   �   �   auth.ts
+        �   �   �   client.ts
+        �   �   �   interceptor.ts
+        �   �   �   
+        �   �   ����hello
+        �   �           route.ts
+        �   �           
+        �   ����application
+        �   �   ����new
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����[id]
+        �   �           loading.tsx
+        �   �           page.tsx
+        �   �           
+        �   ����certification
+        �   �       page.tsx
+        �   �       
+        �   ����dashboard
+        �   �       page.tsx
+        �   �       
+        �   ����directory
+        �   �   ����institutions
+        �   �           page.tsx
+        �   �           
+        �   ����fellowship
+        �   �   ����apply
+        �   �   �       loading.tsx
+        �   �   �       not-found.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����confirmation
+        �   �           page.tsx
+        �   �           
+        �   ����institution
+        �   �   ����confirmation
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����dashboard
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����login
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����register
+        �   �           page.tsx
+        �   �           
+        �   ����login
+        �   �       page.tsx
+        �   �       
+        �   ����manage-classifications
+        �   �   �   page.tsx
+        �   �   �   
+        �   �   ����about
+        �   �           page.tsx
+        �   �           
+        �   ����manage-subscriptions
+        �   �       page.tsx
+        �   �       
+        �   ����notifications
+        �   �       page.tsx
+        �   �       
+        �   ����profile
+        �   �       page.tsx
+        �   �       
+        �   ����qualifications
+        �   �       page.tsx
+        �   �       
+        �   ����register
+        �   �       page.tsx
+        �   �       
+        �   ����registrant
+        �   �   ����applications
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����billing
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����dashboard
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����documents
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����notifications
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����profile
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����settings
+        �   �           page.tsx
+        �   �           
+        �   ����registrar
+        �   �   ����advanced-reports
+        �   �   �       layout.tsx
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����applications
+        �   �   �   �   loading.tsx
+        �   �   �   �   page.tsx
+        �   �   �   �   
+        �   �   �   ����[id]
+        �   �   �       �   loading.tsx
+        �   �   �       �   page.tsx
+        �   �   �       �   
+        �   �   �       ����edit
+        �   �   �               page.tsx
+        �   �   �               
+        �   �   ����billing
+        �   �   �   �   loading.tsx
+        �   �   �   �   page.tsx
+        �   �   �   �   
+        �   �   �   ����new
+        �   �   �   �       page.tsx
+        �   �   �   �       
+        �   �   �   ����[id]
+        �   �   �           page.tsx
+        �   �   �           
+        �   �   ����companies
+        �   �   �   ����[id]
+        �   �   �       ����edit
+        �   �   �               page.tsx
+        �   �   �               
+        �   �   ����dashboard
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����documents
+        �   �   �   �   loading.tsx
+        �   �   �   �   page.tsx
+        �   �   �   �   
+        �   �   �   ����[id]
+        �   �   �           loading.tsx
+        �   �   �           page.tsx
+        �   �   �           
+        �   �   ����engineers
+        �   �   �   �   loading.tsx
+        �   �   �   �   page.tsx
+        �   �   �   �   
+        �   �   �   ����[id]
+        �   �   �       �   loading.tsx
+        �   �   �       �   page.tsx
+        �   �   �       �   
+        �   �   �       ����edit
+        �   �   �               page.tsx
+        �   �   �               
+        �   �   ����institutions
+        �   �   �   ����[id]
+        �   �   �       ����edit
+        �   �   �               page.tsx
+        �   �   �               
+        �   �   ����notifications
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����reports
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����users
+        �   �       �   loading.tsx
+        �   �       �   page.tsx
+        �   �       �   
+        �   �       ����[id]
+        �   �           �   loading.tsx
+        �   �           �   page.tsx
+        �   �           �   
+        �   �           ����edit
+        �   �                   page.tsx
+        �   �                   
+        �   ����reviewer
+        �   �   ����applications
+        �   �   �   �   loading.tsx
+        �   �   �   �   page.tsx
+        �   �   �   �   
+        �   �   �   ����[id]
+        �   �   �           page.tsx
+        �   �   �           
+        �   �   ����dashboard
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����fellowship
+        �   �   �   ����[id]
+        �   �   �           page.tsx
+        �   �   �           
+        �   �   ����notifications
+        �   �   �       loading.tsx
+        �   �   �       page.tsx
+        �   �   �       
+        �   �   ����review
+        �   �       �   loading.tsx
+        �   �       �   page.tsx
+        �   �       �   
+        �   �       ����[id]
+        �   �               page.tsx
+        �   �               
+        �   ����settings
+        �   �   ����notifications
+        �   �           page.tsx
+        �   �           
+        �   ����system-admin
+        �       ����backup
+        �       �       page.tsx
+        �       �       
+        �       ����dashboard
+        �       �       page.tsx
+        �       �       
+        �       ����security
+        �       �       page.tsx
+        �       �       
+        �       ����users
+        �               loading.tsx
+        �               page.tsx
+        �               
+        ����components
+        �   �   auth-provider.tsx
+        �   �   date-range-picker.tsx
+        �   �   file-upload.tsx
+        �   �   footer.tsx
+        �   �   header.tsx
+        �   �   language-provider.tsx
+        �   �   notification-badge.tsx
+        �   �   real-time-notifications.tsx
+        �   �   report-scheduler.tsx
+        �   �   stats-card.tsx
+        �   �   supabase-auth-provider.tsx
+        �   �   supabase-file-upload.tsx
+        �   �   theme-provider.tsx
+        �   �   user-nav.tsx
+        �   �   
+        �   ����application
+        �   �       documents-form.tsx
+        �   �       education-form.tsx
+        �   �       experience-form.tsx
+        �   �       personal-info-form.tsx
+        �   �       professional-certifications-form.tsx
+        �   �       review-form.tsx
+        �   �       
+        �   ����charts
+        �   �       bar-chart.tsx
+        �   �       pie-chart.tsx
+        �   �       registration-chart.tsx
+        �   �       
+        �   ����ui
+        �           accordion.tsx
+          
+        ����hooks
+        �       use-mobile.tsx
+        �       use-toast.ts
+        �       
+        ����lib
+            �   api-error.ts
+            �   db.ts
+            �   utils.ts
+            �   
+            ����data
+                    applications.ts
+                    users.ts
+                    verification.ts
+                    

@@ -8,7 +8,7 @@ import {
   Delete,
   UseGuards,
 } from '@nestjs/common';
-import { UsersService, Role } from '../../../../libs/domain/profile/src/index';
+import { UsersService, Role } from '../../../../libs/domain/users/index';
 import {
   JwtAuthGuard,
   RolesGuard,
