@@ -10,15 +10,29 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import * as cookieParser from 'cookie-parser';
+import * as helmet from 'helmet';
+import * as rateLimit from 'express-rate-limit';
+import { join } from 'path';
+import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
   const globalPrefix = 'api';
+
+  // =========================
+  // SECURITY MIDDLEWARES
+  // =========================
+  app.use(helmet());
+  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })); // 100 requests per 15 min
   app.use(cookieParser());
+
   app.setGlobalPrefix(globalPrefix);
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  // =========================
+  // VALIDATION PIPE
+  // =========================
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -26,13 +40,15 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.enableCors({
-    origin: ['http://localhost:3001'], // السماح فقط من هذا المصدر
-    credentials: true, // السماح بإرسال الكوكيز
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // السماح بكل الطرق
-  });
 
-  // إعداد Swagger
+  // =========================
+  // STATIC FILES (UPLOADS)
+  // =========================
+  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+
+  // =========================
+  // SWAGGER SETUP
+  // =========================
   const config = new DocumentBuilder()
     .setTitle('PRMS API')
     .setDescription('SAC Registration API documentation')
@@ -45,7 +61,18 @@ async function bootstrap() {
   // تغيير المسار إلى 'docs' لتجنب التداخل مع 'api'
   SwaggerModule.setup('docs', app, document);
 
-  // تصحيح استدعاء المنفذ: نداء واحد فقط يكفي
+  // =========================
+  // CORS ENABLED
+  // =========================
+  app.enableCors({
+    origin: ['http://localhost:3001'], // السماح فقط من هذا المصدر
+    credentials: true, // السماح بإرسال الكوكيز
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // السماح بكل الطرق
+  });
+
+  // =========================
+  // START SERVER
+  // =========================
   const port = process.env.PORT || 3000;
   await app.listen(port);
 

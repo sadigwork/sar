@@ -1,84 +1,111 @@
-// libs/domain/profiles/src/lib/profiles.controller.ts
 import {
   Controller,
   Get,
   Post,
-  Body,
   Patch,
+  Body,
   Param,
-  UseGuards,
   Req,
+  UseGuards,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+
+import { ProfilesService } from './profiles.service';
+
 import { JwtAuthGuard } from '../auth/src/lib/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/src/lib/guards/roles.guard';
 import { Roles } from '../auth/src/lib/guards/roles.decorator';
-import { ProfilesService } from './profiles.service';
-import { CreateProfileDto } from './dto/create-profile.dto';
-import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SubmitProfileDto } from './dto/submit-profile.dto';
+import { CreateEducationDto } from './dto/create-education.dto';
+import { CreateExperienceDto } from './dto/create-experience.dto';
 
+import { FileInterceptor } from '@nestjs/platform-express';
+
+// إضافة Swagger decorators
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import {
+  ProfileDto,
+  CreateProfileSwaggerDto,
+  UpdateProfileSwaggerDto,
+} from './profiles.swagger';
+
+ApiTags('Profiles');
+@ApiBearerAuth()
 @Controller('profiles')
 @UseGuards(JwtAuthGuard)
 export class ProfilesController {
   constructor(private readonly profilesService: ProfilesService) {}
 
-  // جلب الملف الشخصي للمستخدم الحالي
   @Get('me')
-  async getMyProfile(@Req() req) {
-    return this.profilesService.findByUserId(req.user.id);
+  @ApiOperation({ summary: 'Get my profile' })
+  @ApiResponse({ status: 200, type: ProfileDto })
+  getMyProfile(@Req() req) {
+    return this.profilesService.getMyProfile(req.user.id);
   }
 
-  // إنشاء ملف شخصي جديد
   @Post()
-  async create(@Req() req, @Body() createProfileDto: CreateProfileDto) {
-    return this.profilesService.create(req.user.id, createProfileDto);
+  @ApiOperation({ summary: 'Create a new profile' })
+  @ApiResponse({ status: 201, type: ProfileDto })
+  create(@Req() req, @Body() dto: CreateProfileSwaggerDto) {
+    return this.profilesService.create(req.user.id, dto);
   }
 
-  // تحديث الملف الشخصي
   @Patch('me')
-  async update(@Req() req, @Body() updateProfileDto: UpdateProfileDto) {
-    return this.profilesService.update(req.user.id, updateProfileDto);
+  @ApiOperation({ summary: 'Update my profile' })
+  @ApiResponse({ status: 200, type: ProfileDto })
+  update(@Req() req, @Body() dto: UpdateProfileSwaggerDto) {
+    return this.profilesService.update(req.user.id, dto);
   }
 
-  // تقديم الملف للمراجعة
   @Post('me/submit')
-  async submitForReview(@Req() req, @Body() submitDto: SubmitProfileDto) {
-    return this.profilesService.submitForReview(req.user.id, submitDto);
+  @ApiOperation({ summary: 'Submit profile for review' })
+  @ApiResponse({ status: 200, type: ProfileDto })
+  submit(@Req() req, @Body() dto: SubmitProfileDto) {
+    return this.profilesService.submitForReview(req.user.id, dto);
   }
 
-  // رفع صورة شخصية
   @Post('me/avatar')
   @UseInterceptors(FileInterceptor('avatar'))
-  async uploadAvatar(@Req() req, @UploadedFile() file: Express.Multer.File) {
+  uploadAvatar(@Req() req, @UploadedFile() file: Express.Multer.File) {
     return this.profilesService.uploadAvatar(req.user.id, file);
   }
 
-  // ===== مسارات الإدارة (للمراجعين والمشرفين) =====
+  @Post('education')
+  addEducation(@Req() req, @Body() dto: CreateEducationDto) {
+    return this.profilesService.addEducation(req.user.id, dto);
+  }
 
-  // جلب جميع الملفات المقدمة للمراجعة
+  @Post('experience')
+  addExperience(@Req() req, @Body() dto: CreateExperienceDto) {
+    return this.profilesService.addExperience(req.user.id, dto);
+  }
+
+  // ===== ADMIN =====
+
   @Get('submitted')
   @UseGuards(RolesGuard)
   @Roles('admin', 'reviewer')
-  async getSubmittedProfiles() {
+  findSubmitted() {
     return this.profilesService.findSubmittedProfiles();
   }
 
-  // جلب ملف شخصي محدد (للمراجعة)
   @Get(':id')
   @UseGuards(RolesGuard)
   @Roles('admin', 'reviewer')
-  async findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string) {
     return this.profilesService.findOne(id);
   }
 
-  // مراجعة ملف شخصي
   @Patch(':id/review')
   @UseGuards(RolesGuard)
   @Roles('admin', 'reviewer')
-  async reviewProfile(
+  review(
     @Param('id') id: string,
     @Body('status') status: string,
     @Body('notes') notes?: string,

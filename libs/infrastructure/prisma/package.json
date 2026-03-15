@@ -11,6 +11,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "include": [
     "src/**/*.ts"
   ],

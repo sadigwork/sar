@@ -1,47 +1,54 @@
-// libs/domain/profiles/src/lib/profiles.service.ts
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+
 import { PrismaService } from '../../infrastructure/prisma/src/lib/prisma.service';
+
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SubmitProfileDto } from './dto/submit-profile.dto';
+import { CreateEducationDto } from './dto/create-education.dto';
+import { CreateExperienceDto } from './dto/create-experience.dto';
+
 import { ProfileStatus } from './entities/profile.entity';
-import * as path from 'path';
-import * as fs from 'fs';
 
 @Injectable()
 export class ProfilesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findByUserId(userId: string) {
+  // =========================
+  // GET MY PROFILE
+  // =========================
+
+  async getMyProfile(userId: string) {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-          },
-        },
+        educations: true,
+        experiences: true,
+        documents: true,
       },
     });
 
     if (!profile) {
-      // إذا لم يوجد ملف شخصي، نعيد كائن فارغ مع إمكانية إنشائه لاحقاً
-      return { exists: false, message: 'Profile not found' };
+      throw new NotFoundException('Profile not found');
     }
 
-    return profile;
+    const completion = this.calculateCompletion(profile);
+
+    return {
+      ...profile,
+      completion,
+    };
   }
 
-  async create(userId: string, createProfileDto: CreateProfileDto) {
-    // التحقق من عدم وجود ملف شخصي مسبق
+  // =========================
+  // CREATE PROFILE
+  // =========================
+
+  async create(userId: string, dto: CreateProfileDto) {
     const existing = await this.prisma.profile.findUnique({
       where: { userId },
     });
@@ -50,19 +57,20 @@ export class ProfilesService {
       throw new BadRequestException('Profile already exists');
     }
 
-    // إنشاء ملف شخصي جديد
-    const profile = await this.prisma.profile.create({
+    return this.prisma.profile.create({
       data: {
         userId,
-        ...createProfileDto,
+        ...dto,
         status: ProfileStatus.DRAFT,
       },
     });
-
-    return profile;
   }
 
-  async update(userId: string, updateProfileDto: UpdateProfileDto) {
+  // =========================
+  // UPDATE PROFILE
+  // =========================
+
+  async update(userId: string, dto: UpdateProfileDto) {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
     });
@@ -71,7 +79,6 @@ export class ProfilesService {
       throw new NotFoundException('Profile not found');
     }
 
-    // لا يمكن تحديث ملف تم تقديمه أو قيد المراجعة
     if (
       profile.status !== ProfileStatus.DRAFT &&
       profile.status !== ProfileStatus.REJECTED
@@ -81,11 +88,17 @@ export class ProfilesService {
       );
     }
 
-    const updatedProfile = await this.prisma.profile.update({
+    const requiredFields = ['fullNameAr', 'fullNameEn', 'nationalId'];
+    const missingFields = requiredFields.filter((f) => !profile[f]);
+    if (missingFields.length)
+      throw new BadRequestException(
+        `Missing required fields: ${missingFields.join(', ')}`,
+      );
+
+    return this.prisma.profile.update({
       where: { userId },
       data: {
-        ...updateProfileDto,
-        // إعادة الحالة إلى DRAFT إذا كان مرفوضاً وتم التحديث
+        ...dto,
         status:
           profile.status === ProfileStatus.REJECTED
             ? ProfileStatus.DRAFT
@@ -93,20 +106,76 @@ export class ProfilesService {
         updatedAt: new Date(),
       },
     });
-
-    return updatedProfile;
   }
 
-  async submitForReview(userId: string, submitDto: SubmitProfileDto) {
+  // =========================
+  // ADD EDUCATION
+  // =========================
+
+  async addEducation(userId: string, dto: CreateEducationDto) {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    return this.prisma.education.create({
+      data: {
+        profileId: profile.id,
+        ...dto,
+      },
+    });
+  }
+
+  // =========================
+  // ADD EXPERIENCE
+  // =========================
+
+  async addExperience(userId: string, dto: CreateExperienceDto) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    return this.prisma.experience.create({
+      data: {
+        profileId: profile.id,
+        ...dto,
+      },
+    });
+  }
+
+  // =========================
+  // SUBMIT PROFILE
+  // =========================
+
+  async submitForReview(userId: string, dto: SubmitProfileDto) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      include: {
+        educations: true,
+        experiences: true,
+        documents: true,
+      },
     });
 
     if (!profile) {
       throw new NotFoundException('Please create your profile first');
     }
 
-    // التحقق من اكتمال البيانات المطلوبة
+    const completion = this.calculateCompletion(profile);
+
+    if (completion < 80) {
+      throw new BadRequestException(
+        `Profile completion must be at least 80%. Current completion: ${completion}%`,
+      );
+    }
+
     const requiredFields = [
       'fullNameAr',
       'fullNameEn',
@@ -116,75 +185,28 @@ export class ProfilesService {
       'university',
     ];
 
-    const missingFields = requiredFields.filter((field) => !profile[field]);
+    const missing = requiredFields.filter((f) => !profile[f]);
 
-    if (missingFields.length > 0) {
+    if (missing.length) {
       throw new BadRequestException(
-        `Missing required fields: ${missingFields.join(', ')}`,
+        `Missing required fields: ${missing.join(', ')}`,
       );
     }
 
-    // تقديم للمراجعة
-    const submittedProfile = await this.prisma.profile.update({
+    return this.prisma.profile.update({
       where: { userId },
       data: {
         status: ProfileStatus.SUBMITTED,
         submittedAt: new Date(),
-        reviewNotes: submitDto.notes,
+        reviewNotes: dto.notes,
       },
     });
-
-    return {
-      message: 'Profile submitted for review successfully',
-      profile: submittedProfile,
-    };
   }
 
-  async uploadAvatar(userId: string, file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
+  // =========================
+  // ADMIN: GET SUBMITTED
+  // =========================
 
-    // التحقق من نوع الملف
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    if (!allowedTypes.includes(file.mimetype)) {
-      throw new BadRequestException(
-        'Only JPEG, PNG, and GIF files are allowed',
-      );
-    }
-
-    // التحقق من الحجم (2MB max)
-    if (file.size > 2 * 1024 * 1024) {
-      throw new BadRequestException('File size cannot exceed 2MB');
-    }
-
-    // إنشاء مسار الصورة
-    const avatarUrl = `/uploads/avatars/${file.filename}`;
-
-    // تحديث الملف الشخصي بالصورة الجديدة
-    const profile = await this.prisma.profile.upsert({
-      where: { userId },
-      update: { avatar: avatarUrl },
-      create: {
-        userId,
-        avatar: avatarUrl,
-        fullNameAr: '',
-        fullNameEn: '',
-        nationalId: '',
-        specialization: '',
-        graduationYear: new Date().getFullYear(),
-        university: '',
-        status: ProfileStatus.DRAFT,
-      },
-    });
-
-    return {
-      avatarUrl,
-      profile,
-    };
-  }
-
-  // دوال الإدارة
   async findSubmittedProfiles() {
     return this.prisma.profile.findMany({
       where: {
@@ -208,19 +230,17 @@ export class ProfilesService {
     });
   }
 
+  // =========================
+  // ADMIN: GET ONE
+  // =========================
+
   async findOne(id: string) {
     const profile = await this.prisma.profile.findUnique({
       where: { id },
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-          },
-        },
+        user: true,
+        educations: true,
+        experiences: true,
       },
     });
 
@@ -231,14 +251,18 @@ export class ProfilesService {
     return profile;
   }
 
-  async reviewProfile(id: string, status: string, notes?: string) {
-    const validStatuses = [ProfileStatus.APPROVED, ProfileStatus.REJECTED];
+  // =========================
+  // ADMIN REVIEW
+  // =========================
 
-    if (!validStatuses.includes(status as ProfileStatus)) {
+  async reviewProfile(id: string, status: string, notes?: string) {
+    const valid = [ProfileStatus.APPROVED, ProfileStatus.REJECTED];
+
+    if (!valid.includes(status as ProfileStatus)) {
       throw new BadRequestException('Invalid status');
     }
 
-    const profile = await this.prisma.profile.update({
+    return this.prisma.profile.update({
       where: { id },
       data: {
         status: status as ProfileStatus,
@@ -246,10 +270,52 @@ export class ProfilesService {
         reviewNotes: notes,
       },
     });
+  }
+  private calculateCompletion(profile: any): number {
+    let score = 0;
 
-    return {
-      message: `Profile ${status.toLowerCase()} successfully`,
-      profile,
-    };
+    // ======================
+    // Personal Info (40%)
+    // ======================
+
+    const personalFields = [
+      'fullNameAr',
+      'fullNameEn',
+      'nationalId',
+      'specialization',
+      'graduationYear',
+      'university',
+    ];
+
+    const filledPersonal = personalFields.filter((f) => profile[f]);
+    const personalScore = (filledPersonal.length / personalFields.length) * 40;
+
+    score += personalScore;
+
+    // ======================
+    // Education (20%)
+    // ======================
+
+    if (profile.educations && profile.educations.length > 0) {
+      score += 20;
+    }
+
+    // ======================
+    // Experience (20%)
+    // ======================
+
+    if (profile.experiences && profile.experiences.length > 0) {
+      score += 20;
+    }
+
+    // ======================
+    // Documents (20%)
+    // ======================
+
+    if (profile.documents && profile.documents.length > 0) {
+      score += 20;
+    }
+
+    return Math.round(score);
   }
 }

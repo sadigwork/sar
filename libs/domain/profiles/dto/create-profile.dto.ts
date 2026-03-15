@@ -1,43 +1,34 @@
-// libs/domain/profiles/src/lib/dto/create-profile.dto.ts
-import { IsString, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { ProfileExample } from '../../../common/swagger/examples';
 
 export class CreateProfileDto {
-  @IsString()
-  userId: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @IsString()
+  @ApiProperty({ example: ProfileExample.fullNameAr })
   fullNameAr: string;
 
-  @IsString()
+  @ApiProperty({ example: ProfileExample.fullNameEn })
   fullNameEn: string;
 
-  @IsString()
+  @ApiProperty({ example: ProfileExample.nationalId })
   nationalId: string;
 
-  @IsString()
-  specialization: string;
+  @ApiProperty({ example: ProfileExample.phone })
+  phone?: string;
 
-  @IsNumber()
-  @Min(1950)
-  @Max(new Date().getFullYear())
-  graduationYear: number;
+  @ApiProperty({ example: ProfileExample.dateOfBirth })
+  dateOfBirth?: string;
 
-  @IsString()
-  university: string;
+  @ApiProperty({ example: ProfileExample.gender })
+  gender?: string;
 
-  @IsOptional()
-  @IsString()
+  @ApiProperty({ example: ProfileExample.address })
   address?: string;
 
-  @IsOptional()
-  @IsString()
-  bio?: string;
+  @ApiProperty({ example: ProfileExample.city })
+  city?: string;
 
-  @IsOptional()
-  @IsString()
-  avatar?: string;
+  @ApiProperty({ example: ProfileExample.country })
+  country?: string;
+
+  @ApiProperty({ example: ProfileExample.bio })
+  bio?: string;
 }

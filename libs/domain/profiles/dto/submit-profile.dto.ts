@@ -1,7 +1,11 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
-// libs/domain/profiles/src/lib/dto/submit-profile.dto.ts
 export class SubmitProfileDto {
+  @ApiProperty({
+    description: 'Optional notes when submitting profile',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   notes?: string;

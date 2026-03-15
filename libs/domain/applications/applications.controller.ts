@@ -2,56 +2,134 @@ import {
   Controller,
   Get,
   Post,
-  Param,
-  Body,
   Patch,
-  Delete,
+  Body,
+  Param,
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/src/lib/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/src/lib/guards/roles.guard';
+import { Roles } from '../auth/src/lib/guards/roles.decorator';
 import { ApplicationsService } from './applications.service';
-import { ApplicationStatus, ApplicationType } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/src/index';
-import { Roles } from '@sacrs/profiles/lib/roles.enum';
-import { RolesGuard } from '../auth/src/index';
-import { Request } from 'express';
+import { CreateApplicationDto } from './dto/create-application.dto';
+import { UpdateApplicationDto } from './dto/update-application.dto';
+import { PaymentMethod } from '../payments/index';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import {
+  ApplicationDto,
+  CreateApplicationSwaggerDto,
+} from './applications.swagger';
 
+@ApiTags('Applications')
+@ApiBearerAuth()
 @Controller('applications')
+@UseGuards(JwtAuthGuard)
 export class ApplicationsController {
-  constructor(private readonly applicationsService: ApplicationsService) {}
+  constructor(private readonly appService: ApplicationsService) {}
 
-  @UseGuards(JwtAuthGuard)
-  @Post('create')
-  async create(@Req() req: Request, @Body('type') type: ApplicationType) {
-    const userId = req.user['id'];
-    return this.applicationsService.createApplication(userId, type);
+  @Get('me')
+  async getMyApplications(@Req() req) {
+    return this.appService.getMyApplications(req.user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('my')
-  async myApplications(@Req() req: Request) {
-    const userId = req.user['id'];
-    return this.applicationsService.getUserApplications(userId);
-  }
-
-  @UseGuards(JwtAuthGuard)
   @Get(':id')
-  async getById(@Param('id') id: string) {
-    return this.applicationsService.getApplicationById(id);
+  @ApiOperation({ summary: 'Get application by ID' })
+  @ApiResponse({ status: 200, type: ApplicationDto })
+  async findOne(@Param('id') id: string) {
+    return this.applicationsService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Patch(':id/status')
-  async updateStatus(
+  @Post()
+  @ApiOperation({ summary: 'Create new application' })
+  @ApiResponse({ status: 201, type: ApplicationDto })
+  async create(@Req() req, @Body() dto: CreateApplicationSwaggerDto) {
+    // تحقق من اكتمال الملف الشخصي قبل إنشاء الطلب
+    const profile = await this.applicationsService.getUserProfile(req.user.id);
+    if (!profile || profile.status !== 'APPROVED') {
+      throw new BadRequestException(
+        'Cannot create application before completing profile',
+      );
+    }
+    return this.appService.createApplication(req.user.id, dto);
+  }
+  @Get()
+  @ApiOperation({ summary: 'Get my applications' })
+  @ApiResponse({ status: 200, type: [ApplicationDto] })
+  findAll(@Req() req) {
+    return this.applicationsService.findAll(req.user.id);
+  }
+
+  @Patch(':id')
+  async update(
+    @Req() req,
     @Param('id') id: string,
-    @Body('status') status: ApplicationStatus,
+    @Body() dto: UpdateApplicationDto,
   ) {
-    return this.applicationsService.updateApplicationStatus(id, status);
+    return this.appService.updateApplication(req.user.id, id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Delete(':id')
-  async delete(@Param('id') id: string) {
-    return this.applicationsService.deleteApplication(id);
+  @Post(':id/submit')
+  async submit(@Req() req, @Param('id') id: string) {
+    return this.appService.submitApplication(req.user.id, id);
+  }
+
+  // ===== Admin / Reviewer routes =====
+  // @Get('submitted/all')
+  // @UseGuards(RolesGuard)
+  // @Roles('admin', 'reviewer')
+  // async submittedApplications() {
+  //   return this.appService.getSubmittedApplications();
+  // }
+
+  // الإدارة والمراجعة
+  @Get('submitted')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'reviewer')
+  findSubmitted() {
+    return this.applicationsService.findSubmitted();
+  }
+
+  @Post(':id/review')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'reviewer')
+  async reviewApplication(
+    @Param('id') id: string,
+    @Req() req,
+    @Body('decision') decision: 'APPROVED' | 'REJECTED' | 'REQUEST_CHANGES',
+    @Body('comment') comment?: string,
+  ) {
+    return this.appService.reviewApplication(
+      id,
+      req.user.id,
+      decision,
+      comment,
+    );
+  }
+
+  // ===== Payments =====
+  @Post(':id/pay')
+  async pay(
+    @Param('id') id: string,
+    @Req() req,
+    @Body('amount') amount: number,
+    @Body('method') method: PaymentMethod,
+  ) {
+    return this.appService.submitPayment(id, req.user.id, amount, method);
+  }
+
+  @Patch('payments/:id/verify')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'accountant', 'finance_manager')
+  async verifyPayment(
+    @Param('id') paymentId: string,
+    @Body('approve') approve: boolean,
+  ) {
+    return this.appService.verifyPayment(paymentId, 'SYSTEM', approve);
   }
 }
