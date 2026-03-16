@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
@@ -10,9 +10,6 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
   },
   "include": [
     "src/**/*.ts"

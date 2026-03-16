@@ -3,14 +3,21 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "prisma:studio": "prisma studio --schema=libs/prisma/prisma/schema.prisma",
-    "prisma:generate": "prisma generate --schema=libs/prisma/prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema=libs/prisma/prisma/schema.prisma",
-    "prisma:reset": "prisma migrate reset --schema=libs/prisma/prisma/schema.prisma"
+    "prisma:studio": "prisma studio --schema=libs/infrastructure/prisma/prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema=libs/infrastructure/prisma/prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema=libs/infrastructure/prisma/prisma/schema.prisma",
+    "prisma:reset": "prisma migrate reset --schema=libs/infrastructure/prisma/prisma/schema.prisma",
+    "prisma:seed": "prisma db seed --schema=libs/infrastructure/prisma/prisma/schema.prisma",
+    "seed:generate": "ts-node prisma/seed-generator.ts"
+  },
+  "prisma": {
+    "schema": "libs/infrastructure/prisma/prisma/schema.prisma",
+    "seed": "ts-node --transpile-only libs/infrastructure/prisma/prisma/seed.ts"
   },
   "private": true,
   "devDependencies": {
     "@eslint/js": "^9.8.0",
+    "@faker-js/faker": "^10.3.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
     "@next/eslint-plugin-next": "^16.0.1",
@@ -54,7 +61,7 @@
     "swc-loader": "^0.2.7",
     "tailwindcss": "3.4.3",
     "ts-jest": "^29.4.0",
-    "ts-node": "10.9.1",
+    "ts-node": "^10.9.1",
     "tslib": "^2.3.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.40.0",

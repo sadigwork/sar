@@ -18,6 +18,24 @@
         }
       }
     },
+    "seed": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "ts-node --project tsconfig.base.json libs/infrastructure/prisma/prisma/seed.ts"
+      }
+    },
+    "seed:generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "ts-node --project tsconfig.base.json libs/infrastructure/prisma/prisma/seed-generator.ts"
+      }
+    },
+    "prisma-generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma generate --schema=libs/infrastructure/prisma/prisma/schema.prisma"
+      }
+    },
     "serve": {
       "executor": "@nx/js:node",
       "options": {

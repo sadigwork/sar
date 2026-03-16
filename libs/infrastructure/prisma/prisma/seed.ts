@@ -1,18 +1,23 @@
-import { PrismaClient, Role } from '@prisma/client';
+import {
+  PrismaClient,
+  Role,
+  ApplicationStatus,
+  ApplicationType,
+} from '@prisma/client';
+import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const password = await bcrypt.hash('Password123', 10);
+const ENGINEERS_COUNT = 50;
+const APPLICATIONS_PER_ENGINEER = 2;
 
-  // =========================
-  // Admin
-  // =========================
-
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@system.com',
+async function createSystemUsers(password: string) {
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@sacrs.ly' },
+    update: {},
+    create: {
+      email: 'admin@sacrs.ly',
       password,
       firstName: 'System',
       lastName: 'Admin',
@@ -20,13 +25,11 @@ async function main() {
     },
   });
 
-  // =========================
-  // Reviewer
-  // =========================
-
-  const reviewer = await prisma.user.create({
-    data: {
-      email: 'reviewer@system.com',
+  const reviewer = await prisma.user.upsert({
+    where: { email: 'reviewer@sacrs.ly' },
+    update: {},
+    create: {
+      email: 'reviewer@sacrs.ly',
       password,
       firstName: 'Application',
       lastName: 'Reviewer',
@@ -34,13 +37,11 @@ async function main() {
     },
   });
 
-  // =========================
-  // Accountant
-  // =========================
-
-  const accountant = await prisma.user.create({
-    data: {
-      email: 'accountant@system.com',
+  const accountant = await prisma.user.upsert({
+    where: { email: 'accountant@sacrs.ly' },
+    update: {},
+    create: {
+      email: 'accountant@sacrs.ly',
       password,
       firstName: 'Finance',
       lastName: 'Officer',
@@ -48,65 +49,74 @@ async function main() {
     },
   });
 
-  // =========================
-  // Engineer User
-  // =========================
+  return { admin, reviewer, accountant };
+}
 
-  const engineer = await prisma.user.create({
-    data: {
-      email: 'engineer@test.com',
-      password,
-      firstName: 'Ahmed',
-      lastName: 'Ali',
-      role: Role.USER,
-    },
-  });
+async function createEngineers(password: string, reviewerId: string) {
+  for (let i = 0; i < ENGINEERS_COUNT; i++) {
+    const firstName = faker.person.firstName();
+    const lastName = faker.person.lastName();
 
-  // =========================
-  // Profile
-  // =========================
+    const user = await prisma.user.create({
+      data: {
+        email: faker.internet.email({ firstName, lastName }),
+        password,
+        firstName,
+        lastName,
+        role: Role.USER,
+      },
+    });
 
-  const profile = await prisma.profile.create({
-    data: {
-      userId: engineer.id,
-      fullNameAr: 'أحمد محمد علي',
-      fullNameEn: 'Ahmed Mohamed Ali',
-      nationalId: '119876543210',
-      phone: '+218912345678',
-      city: 'Tripoli',
-      country: 'Libya',
-      status: 'APPROVED',
-    },
-  });
+    const profile = await prisma.profile.create({
+      data: {
+        userId: user.id,
+        fullNameAr: `${firstName} ${lastName}`,
+        fullNameEn: `${firstName} ${lastName}`,
+        nationalId: faker.string.numeric(12),
+        phone: faker.phone.number('+2189########'),
+        city: faker.location.city(),
+        country: 'Libya',
+        status: 'APPROVED',
+      },
+    });
 
-  // =========================
-  // Application
-  // =========================
+    for (let j = 0; j < APPLICATIONS_PER_ENGINEER; j++) {
+      const application = await prisma.application.create({
+        data: {
+          userId: user.id,
+          profileId: profile.id,
+          type: ApplicationType.REGISTRATION,
+          status: ApplicationStatus.SUBMITTED,
+        },
+      });
 
-  const application = await prisma.application.create({
-    data: {
-      userId: engineer.id,
-      profileId: profile.id,
-      type: 'NEW_REGISTRATION',
-      status: 'SUBMITTED',
-    },
-  });
+      await prisma.applicationReview.create({
+        data: {
+          applicationId: application.id,
+          reviewerId,
+          role: Role.REVIEWER,
+          decision: 'APPROVED',
+          comment: faker.lorem.sentence(),
+        },
+      });
+    }
 
-  // =========================
-  // Review
-  // =========================
+    if (i % 10 === 0) {
+      console.log(`Generated ${i} engineers`);
+    }
+  }
+}
 
-  await prisma.applicationReview.create({
-    data: {
-      applicationId: application.id,
-      reviewerId: reviewer.id,
-      role: Role.REVIEWER,
-      decision: 'APPROVED',
-      comment: 'Application verified successfully',
-    },
-  });
+async function main() {
+  console.log('🌱 Seeding database...');
 
-  console.log('🌱 Seed completed successfully');
+  const password = await bcrypt.hash('Password123', 10);
+
+  const { reviewer } = await createSystemUsers(password);
+
+  await createEngineers(password, reviewer.id);
+
+  console.log('✅ Seed completed successfully');
 }
 
 main()
