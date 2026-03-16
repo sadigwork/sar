@@ -77,5 +77,8 @@
     "test": {
       "dependsOn": ["^build"]
     }
+  },
+  "scripts": {
+    "db:reset": "ts-node tools/scripts/db-reset.ts"
   }
 }
