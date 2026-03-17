@@ -20,11 +20,9 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiBody,
 } from '@nestjs/swagger';
-import {
-  ApplicationDto,
-  CreateApplicationSwaggerDto,
-} from './applications.swagger';
+import { ApplicationDto } from './applications.swagger';
 
 @ApiTags('Applications')
 @ApiBearerAuth()
@@ -47,8 +45,9 @@ export class ApplicationsController {
 
   @Post()
   @ApiOperation({ summary: 'Create new application' })
+  @ApiBody({ type: CreateApplicationDto })
   @ApiResponse({ status: 201, type: ApplicationDto })
-  async create(@Req() req, @Body() dto: CreateApplicationSwaggerDto) {
+  async create(@Req() req, @Body() dto: CreateApplicationDto) {
     // تحقق من اكتمال الملف الشخصي قبل إنشاء الطلب
     const profile = await this.applicationsService.getUserProfile(req.user.id);
     if (!profile || profile.status !== 'APPROVED') {

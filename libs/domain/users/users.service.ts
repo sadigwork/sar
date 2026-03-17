@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/src/lib/prisma.service';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -13,15 +14,22 @@ export class UsersService {
     password: string;
     firstName: string;
     lastName: string;
-    role?: string;
+    role?: Role | string;
   }) {
+    let role: Role = Role.USER;
+
+    if (typeof data.role === 'string') {
+      role = Role[data.role as keyof typeof Role] ?? Role.USER;
+    } else if (data.role) {
+      role = data.role;
+    }
     return this.prisma.user.create({
       data: {
         email: data.email,
         password: data.password, // 🔥 لا نقوم بالـ hash هنا
         firstName: data.firstName,
         lastName: data.lastName,
-        role: data.role ?? 'user',
+        role,
       },
       select: {
         id: true,

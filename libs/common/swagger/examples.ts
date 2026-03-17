@@ -86,3 +86,24 @@ export const DashboardExamples = {
     ],
   },
 };
+
+export const ProfileExample = {
+  fullNameAr: 'أحمد محمد علي',
+  fullNameEn: 'Ahmad Mohamed Ali',
+  nationalId: '119900123456',
+  phone: '+218912345678',
+  dateOfBirth: '1990-05-15',
+  gender: 'Male',
+  address: 'Tripoli - Libya',
+  city: 'Tripoli',
+  country: 'Libya',
+  // avatar: '/uploads/avatar.png',
+  avatar: 'https://example.com/avatar.jpg',
+  bio: 'Agricultural Engineer مهندس برمجيات بخبرة 5 سنوات في تطوير تطبيقات الويب',
+  status: 'DRAFT',
+};
+
+export const ApplicationExample = {
+  type: 'REGISTRATION',
+  status: 'SUBMITTED',
+};

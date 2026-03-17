@@ -13,53 +13,52 @@ export const SwaggerRegister = () =>
         user: {
           summary: 'Regular user',
           value: {
-            firstName: 'Alice',
-            lastName: 'User',
-            email: 'user@example.com',
-            password: 'password123',
-            role: Role.USER,
+            firstName: 'Elsadig',
+            lastName: 'Adam',
+            email: 'sadi@hotmail.com',
+            password: 'Password123',
           },
         },
-        reviewer: {
-          summary: 'Reviewer',
-          value: {
-            firstName: 'Bob',
-            lastName: 'Reviewer',
-            email: 'reviewer@example.com',
-            password: 'password123',
-            role: Role.REVIEWER,
-          },
-        },
-        admin: {
-          summary: 'Admin',
-          value: {
-            firstName: 'Charlie',
-            lastName: 'Admin',
-            email: 'admin@example.com',
-            password: 'password123',
-            role: Role.ADMIN,
-          },
-        },
-        registrar: {
-          summary: 'Registrar',
-          value: {
-            firstName: 'Diana',
-            lastName: 'Registrar',
-            email: 'registrar@example.com',
-            password: 'password123',
-            role: Role.REGISTRAR,
-          },
-        },
-        accountant: {
-          summary: 'Accountant',
-          value: {
-            firstName: 'Edward',
-            lastName: 'Accountant',
-            email: 'accountant@example.com',
-            password: 'password123',
-            role: Role.ACCOUNTANT,
-          },
-        },
+        // reviewer: {
+        //   summary: 'Reviewer',
+        //   value: {
+        //     firstName: 'Bob',
+        //     lastName: 'Reviewer',
+        //     email: 'reviewer@sacrs.ly',
+        //     password: 'Password123',
+        //     role: Role.REVIEWER,
+        //   },
+        // },
+        // admin: {
+        //   summary: 'Admin',
+        //   value: {
+        //     firstName: 'Charlie',
+        //     lastName: 'Admin',
+        //     email: 'admin@sacrs.ly',
+        //     password: 'Password123',
+        //     role: Role.ADMIN,
+        //   },
+        // },
+        // registrar: {
+        //   summary: 'Registrar',
+        //   value: {
+        //     firstName: 'Diana',
+        //     lastName: 'Registrar',
+        //     email: 'registrar@sacrs.ly',
+        //     password: 'Password123',
+        //     role: Role.REGISTRAR,
+        //   },
+        // },
+        // accountant: {
+        //   summary: 'Accountant',
+        //   value: {
+        //     firstName: 'Edward',
+        //     lastName: 'Accountant',
+        //     email: 'accountant@sacrs.ly',
+        //     password: 'Password123',
+        //     role: Role.ACCOUNTANT,
+        //   },
+        // },
       },
     }),
     ApiResponse({ status: 201, description: 'User registered successfully' }),
@@ -74,23 +73,26 @@ export const SwaggerLogin = () =>
       examples: {
         user: {
           summary: 'User login',
-          value: { email: 'user@example.com', password: 'password123' },
+          value: {
+            email: 'sadig@sadig.com',
+            password: 'Password123',
+          },
         },
         reviewer: {
           summary: 'Reviewer login',
-          value: { email: 'reviewer@example.com', password: 'password123' },
+          value: { email: 'reviewer@sacrs.ly', password: 'Password123' },
         },
         admin: {
           summary: 'Admin login',
-          value: { email: 'admin@example.com', password: 'password123' },
+          value: { email: 'admin@sacrs.ly', password: 'Password123' },
         },
         registrar: {
           summary: 'Registrar login',
-          value: { email: 'registrar@example.com', password: 'password123' },
+          value: { email: 'registrar@sacrs.ly', password: 'Password123' },
         },
         accountant: {
           summary: 'Accountant login',
-          value: { email: 'accountant@example.com', password: 'password123' },
+          value: { email: 'accountant@sacrs.ly', password: 'Password123' },
         },
       },
     }),

@@ -36,5 +36,5 @@ export class RegisterDto {
   })
   @IsOptional()
   @IsEnum(Role)
-  role: string;
+  role?: Role;
 }

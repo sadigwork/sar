@@ -28,12 +28,11 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiBody,
 } from '@nestjs/swagger';
-import {
-  ProfileDto,
-  CreateProfileSwaggerDto,
-  UpdateProfileSwaggerDto,
-} from './profiles.swagger';
+import { ProfileDto } from './profiles.swagger';
+import { CreateProfileDto } from './dto/create-profile.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 ApiTags('Profiles');
 @ApiBearerAuth()
@@ -51,15 +50,16 @@ export class ProfilesController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new profile' })
+  @ApiBody({ type: CreateProfileDto })
   @ApiResponse({ status: 201, type: ProfileDto })
-  create(@Req() req, @Body() dto: CreateProfileSwaggerDto) {
+  create(@Req() req, @Body() dto: CreateProfileDto) {
     return this.profilesService.create(req.user.id, dto);
   }
 
   @Patch('me')
   @ApiOperation({ summary: 'Update my profile' })
   @ApiResponse({ status: 200, type: ProfileDto })
-  update(@Req() req, @Body() dto: UpdateProfileSwaggerDto) {
+  update(@Req() req, @Body() dto: UpdateProfileDto) {
     return this.profilesService.update(req.user.id, dto);
   }
 

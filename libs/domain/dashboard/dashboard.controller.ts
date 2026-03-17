@@ -2,7 +2,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiResponse } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
-import { DashboardExamples } from '@common/swagger/examples';
+import { DashboardExamples } from '../../common/swagger/examples';
 
 @ApiTags('Dashboard')
 @Controller('dashboard')

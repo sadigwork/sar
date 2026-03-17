@@ -29,6 +29,13 @@ export class AuthService {
   // =======================
 
   async registerByAdmin(dto: CreateUserDto) {
+    const roleMap: Record<string, Role> = {
+      USER: Role.USER,
+      ADMIN: Role.ADMIN,
+      REVIEWER: Role.REVIEWER,
+      REGISTRAR: Role.REGISTRAR,
+      ACCOUNTANT: Role.ACCOUNTANT,
+    };
     const existingUser = await this.usersService.findByEmail(dto.email);
 
     if (existingUser) {
@@ -42,7 +49,7 @@ export class AuthService {
       password: hashedPassword,
       firstName: dto.firstName,
       lastName: dto.lastName,
-      role: dto.role,
+      role: roleMap[dto.role] ?? Role.USER,
     });
 
     const tokens = await this.generateTokens(newUser);
@@ -80,7 +87,7 @@ export class AuthService {
   // REGISTER (PUBLIC)
   // =======================
 
-  async register(dto: RegisterDto, role: Role = Role.USER) {
+  async register(dto: RegisterDto) {
     const existingUser = await this.usersService.findByEmail(dto.email);
 
     if (existingUser) {
@@ -94,7 +101,7 @@ export class AuthService {
       password: hashedPassword,
       firstName: dto.firstName,
       lastName: dto.lastName,
-      role,
+      role: Role.USER,
     });
 
     // إنشاء Profile تلقائياً
