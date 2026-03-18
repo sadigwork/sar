@@ -280,6 +280,9 @@ model Experience {
   endDate   DateTime?
   isCurrent Boolean   @default(false)
 
+  years      Int
+  months     Int
+
   createdAt DateTime @default(now())
 
   profile Profile @relation(fields: [profileId], references: [id])

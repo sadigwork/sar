@@ -1,21 +1,31 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsDate, IsBoolean, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsDate,
+  ValidateIf,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateExperienceDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'Mustagbal Org' })
   @IsString()
   company: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Technical Manager' })
   @IsString()
   position: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '2007-03-18' })
+  @Transform(({ value }) => new Date(value))
   @IsDate()
   startDate: Date;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ example: '2009-03-18', required: false })
   @IsOptional()
+  @ValidateIf((o) => !o.isCurrent) // ❌ لا يُسمح إذا isCurrent = true
+  @Transform(({ value }) => (value ? new Date(value) : null))
   @IsDate()
   endDate?: Date;
 

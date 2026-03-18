@@ -68,17 +68,45 @@ export class AuthService {
   // =======================
 
   async validateUser(dto: LoginDto) {
+    console.log('\n========== LOGIN DEBUG START ==========');
+    console.log('[STEP 1] Incoming DTO:', dto);
+
     const user = await this.usersService.findByEmail(dto.email);
 
     if (!user) {
+      console.log('[STEP 2] ❌ User NOT FOUND');
       throw new UnauthorizedException('Invalid email or password');
     }
+
+    console.log('[STEP 2] ✅ User FOUND');
+    console.log('[DB USER]', {
+      id: user.id,
+      email: user.email,
+      password: user.password,
+      role: user.role,
+    });
+
+    // ⚠️ تحقق من نوع كلمة المرور
+    console.log('[STEP 3] Password length:', user.password?.length);
+    console.log(
+      '[STEP 3] Starts with $2b$ ?',
+      user.password?.startsWith('$2b$'),
+    );
 
     const isValid = await bcrypt.compare(dto.password, user.password);
 
+    console.log('[STEP 4] bcrypt.compare result:', isValid);
+
     if (!isValid) {
+      console.log('[STEP 4] ❌ Password mismatch');
+      console.log('[INPUT PASSWORD]', dto.password);
+      console.log('[HASHED PASSWORD]', user.password);
+
       throw new UnauthorizedException('Invalid email or password');
     }
+
+    console.log('[STEP 5] ✅ Password MATCH');
+    console.log('========== LOGIN DEBUG SUCCESS ==========\n');
 
     return user;
   }

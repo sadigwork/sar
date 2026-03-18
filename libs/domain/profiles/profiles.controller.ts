@@ -60,6 +60,9 @@ export class ProfilesController {
   @ApiOperation({ summary: 'Update my profile' })
   @ApiResponse({ status: 200, type: ProfileDto })
   update(@Req() req, @Body() dto: UpdateProfileDto) {
+    if (dto.dateOfBirth) {
+      dto.dateOfBirth = new Date(dto.dateOfBirth) as any;
+    }
     return this.profilesService.update(req.user.id, dto);
   }
 
@@ -83,6 +86,7 @@ export class ProfilesController {
 
   @Post('experience')
   addExperience(@Req() req, @Body() dto: CreateExperienceDto) {
+    console.log('BODY:', dto);
     return this.profilesService.addExperience(req.user.id, dto);
   }
 
@@ -111,5 +115,15 @@ export class ProfilesController {
     @Body('notes') notes?: string,
   ) {
     return this.profilesService.reviewProfile(id, status, notes);
+  }
+
+  @Get('intelligence')
+  getProfileIntelligence(@Req() req) {
+    return this.profilesService.getProfileIntelligence(req.user.id);
+  }
+
+  @Get('dashboard/levels')
+  async userLevels() {
+    return this.profilesService.getUserLevelsStats();
   }
 }

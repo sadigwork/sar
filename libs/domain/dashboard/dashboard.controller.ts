@@ -19,6 +19,10 @@ export class DashboardController {
     return this.service.stats();
   }
 
+  @Get('dashboard/stats')
+  getStats() {
+    return this.profilesService.getDashboardStats();
+  }
   @Get('applications/status')
   @ApiResponse({
     status: 200,

@@ -110,4 +110,48 @@ export class DashboardService {
       include: { application: { include: { user: true } } },
     });
   }
+
+  async getDashboardStats() {
+    const totalUsers = await this.prisma.user.count();
+
+    const totalProfiles = await this.prisma.profile.count();
+
+    const totalExperiences = await this.prisma.experience.count();
+
+    const activeUsers = await this.prisma.user.count({
+      where: { isActive: true },
+    });
+
+    return {
+      totalUsers,
+      totalProfiles,
+      totalExperiences,
+      activeUsers,
+    };
+  }
+  async getUserLevelsStats() {
+    const profiles = await this.prisma.profile.findMany({
+      include: { experiences: true },
+    });
+
+    const stats = {
+      Junior: 0,
+      'Mid-Level': 0,
+      Senior: 0,
+      Expert: 0,
+    };
+
+    for (const profile of profiles) {
+      const totalMonths = profile.experiences.reduce((sum, exp) => {
+        return sum + (exp.years * 12 + exp.months);
+      }, 0);
+
+      const years = Math.floor(totalMonths / 12);
+      const level = classifyUser(years);
+
+      stats[level]++;
+    }
+
+    return stats;
+  }
 }

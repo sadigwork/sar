@@ -11,8 +11,9 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SubmitProfileDto } from './dto/submit-profile.dto';
 import { CreateEducationDto } from './dto/create-education.dto';
 import { CreateExperienceDto } from './dto/create-experience.dto';
-
 import { ProfileStatus } from './entities/profile.entity';
+import { calculateExperienceDuration } from './utils/date.util';
+import { classifyUser } from './utils/classify.util';
 
 @Injectable()
 export class ProfilesService {
@@ -142,10 +143,34 @@ export class ProfilesService {
       throw new NotFoundException('Profile not found');
     }
 
+    // ❌ validation منطقي
+    if (dto.isCurrent && dto.endDate) {
+      throw new BadRequestException('End date must be null if current job');
+    }
+
+    if (!dto.isCurrent && !dto.endDate) {
+      throw new BadRequestException('End date is required if not current job');
+    }
+
+    const start = new Date(dto.startDate);
+    const end = dto.endDate ? new Date(dto.endDate) : null;
+
+    if (end && end < start) {
+      throw new BadRequestException('End date must be after start date');
+    }
+    // ✅ حساب المدة
+    const duration = calculateExperienceDuration(dto.startDate, dto.endDate);
+
     return this.prisma.experience.create({
       data: {
         profileId: profile.id,
-        ...dto,
+        company: dto.company,
+        position: dto.position,
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+        isCurrent: dto.isCurrent,
+        years: duration.years,
+        months: duration.months,
       },
     });
   }
@@ -317,5 +342,106 @@ export class ProfilesService {
     }
 
     return Math.round(score);
+  }
+
+  async getTotalExperience(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      include: {
+        experiences: true,
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    const totalMonths = profile.experiences.reduce((sum, exp) => {
+      return sum + (exp.years * 12 + exp.months);
+    }, 0);
+
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+
+    return {
+      years,
+      months,
+      totalMonths,
+    };
+  }
+
+  async getProfileIntelligence(userId: string) {
+    const totalExp = await this.getTotalExperience(userId);
+    const completion = await this.getProfileCompletion(userId);
+    const level = classifyUser(totalExp.years);
+
+    return {
+      experience: totalExp,
+      level,
+      completion,
+    };
+  }
+  async getUserLevelsStats() {
+    const profiles = await this.prisma.profile.findMany({
+      include: { experiences: true },
+    });
+
+    const stats = {
+      Junior: 0,
+      'Mid-Level': 0,
+      Senior: 0,
+      Expert: 0,
+    };
+
+    for (const profile of profiles) {
+      const totalMonths = profile.experiences.reduce((sum, exp) => {
+        return sum + (exp.years * 12 + exp.months);
+      }, 0);
+
+      const years = Math.floor(totalMonths / 12);
+      const level = classifyUser(years);
+
+      stats[level]++;
+    }
+
+    return stats;
+  }
+
+  async getProfileCompletion(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      include: {
+        experiences: true,
+        educations: true,
+        documents: true,
+        user: true,
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    let score = 0;
+
+    // basic info
+    if (profile.user?.firstName && profile.user?.lastName) score += 20;
+
+    // profile
+    if (profile.fullNameAr && profile.fullNameEn) score += 20;
+
+    // experience
+    if (profile.experiences.length > 0) score += 30;
+
+    // education
+    if (profile.educations.length > 0) score += 20;
+
+    // documents
+    if (profile.documents.length > 0) score += 10;
+
+    return {
+      completion: score,
+      isComplete: score === 100,
+    };
   }
 }

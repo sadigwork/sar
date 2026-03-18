@@ -15,7 +15,7 @@ export const SwaggerRegister = () =>
           value: {
             firstName: 'Elsadig',
             lastName: 'Adam',
-            email: 'sadi@hotmail.com',
+            email: 'sadig@sadig.com',
             password: 'Password123',
           },
         },
