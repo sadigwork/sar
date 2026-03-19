@@ -99,7 +99,7 @@ export class ApplicationsController {
   @Post(':id/review')
   @UseGuards(StageGuard, new RoleGuard(['REGISTRAR', 'REVIEWER', 'ACCOUNTANT']))
   reviewApplication(@Param('id') id: string, @Body() body: any) {
-    return this.service.reviewApplication(
+    return this.appService.reviewApplication(
       id,
       body.reviewerId,
       body.decision,

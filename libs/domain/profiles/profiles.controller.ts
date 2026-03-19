@@ -45,7 +45,7 @@ export class ProfilesController {
   @ApiOperation({ summary: 'Get my profile' })
   @ApiResponse({ status: 200, type: ProfileDto })
   getMyProfile(@Req() req) {
-    return this.profilesService.getMyProfile(req.user.id);
+    return this.profilesService.findByUserId(req.user.id);
   }
 
   @Post()

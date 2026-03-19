@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -20,9 +14,8 @@ model User {
   lastName  String
   password  String
 
-  role     Role    @default(USER)
-  isActive Boolean @default(true)
-
+  role         Role    @default(USER)
+  isActive     Boolean @default(true)
   refreshToken String?
 
   createdAt DateTime @default(now())
@@ -35,6 +28,10 @@ model User {
   payments     Payment[]
   tokens       RefreshToken[]
   activities   ActivityLog[]
+
+  // مراجعات كمراجع
+  documentReviews DocumentReview[] @relation("UserDocumentReviews")
+  profileReviews  ProfileReview[]  @relation("UserProfileReviews")
 }
 
 model Profile {
@@ -43,16 +40,14 @@ model Profile {
 
   fullNameAr String
   fullNameEn String
-
   nationalId String  @unique
   phone      String?
 
   dateOfBirth DateTime?
   gender      String?
-
-  address String?
-  city    String?
-  country String?
+  address     String?
+  city        String?
+  country     String?
 
   avatar String?
   bio    String?
@@ -67,20 +62,69 @@ model Profile {
   experiences  Experience[]
   documents    Document[]
   applications Application[]
+
+  // مراجعات للبروفايل
+  reviews ProfileReview[] @relation("ProfileReviews")
+}
+
+model Document {
+  id            String  @id @default(uuid())
+  userId        String
+  profileId     String?
+  applicationId String?
+
+  type    DocumentType
+  fileUrl String
+  status  DocumentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  user        User             @relation(fields: [userId], references: [id])
+  profile     Profile?         @relation(fields: [profileId], references: [id])
+  reviews     DocumentReview[] @relation("DocumentReviews")
+  application Application?     @relation(fields: [applicationId], references: [id])
+}
+
+model DocumentReview {
+  id         String @id @default(cuid())
+  documentId String
+  reviewerId String
+
+  document Document @relation(fields: [documentId], references: [id], name: "DocumentReviews")
+  reviewer User     @relation(fields: [reviewerId], references: [id], name: "UserDocumentReviews")
+
+  createdAt DateTime       @default(now())
+  decision  ReviewDecision
+  comment   String?
+  stage     ReviewStage    @default(REGISTRAR_REVIEW)
+}
+
+model ProfileReview {
+  id         String @id @default(cuid())
+  profileId  String
+  reviewerId String
+
+  profile  Profile @relation(fields: [profileId], references: [id], name: "ProfileReviews")
+  reviewer User    @relation(fields: [reviewerId], references: [id], name: "UserProfileReviews")
+
+  createdAt DateTime       @default(now())
+  decision  ReviewDecision
+  comment   String?
+  stage     ReviewStage    @default(REGISTRAR_REVIEW)
 }
 
 model Application {
-  id String @id @default(uuid())
-
+  id        String @id @default(uuid())
   userId    String
   profileId String
 
-  type   ApplicationType
-  status ApplicationStatus @default(DRAFT)
-  currentStage ReviewStage?
+  type         ApplicationType
+  status       ApplicationStatus @default(DRAFT)
+  currentStage ReviewStage?      @default(REGISTRAR_REVIEW)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  submittedAt DateTime?
 
   user    User    @relation(fields: [userId], references: [id])
   profile Profile @relation(fields: [profileId], references: [id])
@@ -91,19 +135,15 @@ model Application {
 }
 
 model ApplicationReview {
-  id String @id @default(uuid())
-
+  id            String @id @default(uuid())
   applicationId String
   reviewerId    String
 
-  role  Role
-  stage ReviewStage
-
-  decision ReviewDecision
-  comment  String?
-
-  // 🔥 Admin Override
-  isOverride Boolean @default(false)
+  role           Role
+  stage          ReviewStage    @default(REGISTRAR_REVIEW)
+  decision       ReviewDecision
+  comment        String?
+  isOverride     Boolean?       @default(false)
   overrideReason String?
 
   createdAt DateTime @default(now())
@@ -114,135 +154,16 @@ model ApplicationReview {
   @@index([applicationId, stage])
 }
 
-enum ProfileStatus {
-  DRAFT
-  SUBMITTED
-  REGISTRAR_REVIEW
-  REVIEWER_REVIEW
-  ADMIN_REVIEW
-  APPROVED
-  REJECTED
-  SUSPENDED
-}
-
-enum ApplicationType {
-  REGISTRATION
-  RENEWAL
-  UPGRADE
-}
-
-enum ApplicationStatus {
-  DRAFT
-  SUBMITTED
-
-  REGISTRAR_REVIEW
-  REVIEWER_REVIEW
-
-  PAYMENT_PENDING
-  PAYMENT_VERIFIED
-
-  FINANCE_APPROVAL
-
-  ADMIN_REVIEW
-
-  APPROVED
-  REJECTED
-}
-
-enum ReviewDecision {
-  APPROVED
-  REJECTED
-  REQUEST_CHANGES
-  PAYMENT_VERIFIED
-}
-
-model Document {
-  id String @id @default(uuid())
-
-  userId        String
-  profileId     String?
-  applicationId String?
-
-  type    DocumentType
-  fileUrl String
-
-  status DocumentStatus @default(PENDING)
-  reviews DocumentReview[]
-
-  createdAt DateTime @default(now())
-
-  user        User         @relation(fields: [userId], references: [id])
-  profile     Profile?     @relation(fields: [profileId], references: [id])
-  application Application? @relation(fields: [applicationId], references: [id])
-}
-
-enum DocumentType {
-  DEGREE
-  LICENSE
-  NATIONAL_ID
-  PHOTO
-}
-
-enum DocumentStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum Role {
-  USER
-  REGISTRAR
-  REVIEWER
-  ACCOUNTANT
-  FINANCE_MANAGER
-  ADMIN
-}
-
-model ActivityLog {
-  id String @id @default(uuid())
-
-  userId String?
-  action String
-
-  entity   String
-  entityId String?
-
-  metadata Json?
-
-  createdAt DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id])
-}
-
-model RefreshToken {
-  id String @id @default(uuid())
-
-  userId    String
-  tokenHash String
-
-  expiresAt DateTime
-  revokedAt DateTime?
-
-  ip        String?
-  userAgent String?
-
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-}
-
 model Payment {
   id String @id @default(uuid())
 
   userId        String
   applicationId String
 
-  amount   Float
-  currency String
-
-  method PaymentMethod
-  status PaymentStatus
-
+  amount    Float
+  currency  String
+  method    PaymentMethod
+  status    PaymentStatus
   reference String?
 
   createdAt DateTime @default(now())
@@ -250,19 +171,6 @@ model Payment {
 
   user        User        @relation(fields: [userId], references: [id])
   application Application @relation(fields: [applicationId], references: [id])
-}
-
-enum PaymentMethod {
-  CASH
-  BANK_TRANSFER
-  ONLINE
-}
-
-enum PaymentStatus {
-  PENDING
-  SUBMITTED
-  VERIFIED
-  REJECTED
 }
 
 model Education {
@@ -290,44 +198,71 @@ model Experience {
   endDate   DateTime?
   isCurrent Boolean   @default(false)
 
-  years      Int
-  months     Int
+  years  Int
+  months Int
 
   createdAt DateTime @default(now())
 
   profile Profile @relation(fields: [profileId], references: [id])
 }
 
-model DocumentReview {
+model ActivityLog {
   id String @id @default(uuid())
 
-  documentId String
-  reviewerId String
-
-  decision ReviewDecision
-  comment  String?
-  stage ReviewStage
+  userId   String?
+  action   String
+  entity   String
+  entityId String?
+  metadata Json?
 
   createdAt DateTime @default(now())
-
-  document Document @relation(fields: [documentId], references: [id])
-  reviewer User @relation(fields: [reviewerId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
 }
 
-model ProfileReview {
+model RefreshToken {
   id String @id @default(uuid())
 
-  profileId String
-  reviewerId String
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
 
-  decision ReviewDecision
-  comment String?
-  stage ReviewStage
+  ip        String?
+  userAgent String?
 
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
 
-  profile Profile @relation(fields: [profileId], references: [id])
-  reviewer User @relation(fields: [reviewerId], references: [id])
+enum ProfileStatus {
+  DRAFT
+  SUBMITTED
+  REGISTRAR_REVIEW
+  REVIEWER_REVIEW
+  FINANCE_REVIEW
+  ADMIN_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ApplicationType {
+  REGISTRATION
+  RENEWAL
+  UPGRADE
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  REGISTRAR_REVIEW
+  REVIEWER_REVIEW
+  PAYMENT_PENDING
+  PAYMENT_VERIFIED
+  FINANCE_APPROVAL
+  ADMIN_REVIEW
+  APPROVED
+  REJECTED
 }
 
 enum ReviewStage {
@@ -337,3 +272,44 @@ enum ReviewStage {
   ADMIN_REVIEW
 }
 
+enum ReviewDecision {
+  APPROVED
+  REJECTED
+  REQUEST_CHANGES
+  PAYMENT_VERIFIED
+}
+
+enum DocumentType {
+  DEGREE
+  LICENSE
+  NATIONAL_ID
+  PHOTO
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum Role {
+  USER
+  REGISTRAR
+  REVIEWER
+  ACCOUNTANT
+  FINANCE_MANAGER
+  ADMIN
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUBMITTED
+  VERIFIED
+  REJECTED
+}

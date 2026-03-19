@@ -30,6 +30,7 @@ export class ProfilesService {
         educations: true,
         experiences: true,
         documents: true,
+        applications: true,
       },
     });
 

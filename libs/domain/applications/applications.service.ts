@@ -20,6 +20,13 @@ export class ApplicationsService {
     private readonly workflowService: WorkflowService,
   ) {}
 
+  async findByUserId(userId: string) {
+    return this.prisma.application.findMany({
+      where: { userId },
+      include: { profile: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
   // =========================
   // Create Application
   // =========================
