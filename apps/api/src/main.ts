@@ -44,7 +44,10 @@ async function bootstrap() {
   // =========================
   // STATIC FILES (UPLOADS)
   // =========================
-  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+  // app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+  });
 
   // =========================
   // SWAGGER SETUP

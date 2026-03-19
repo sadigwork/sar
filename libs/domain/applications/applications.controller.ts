@@ -11,6 +11,8 @@ import {
 import { JwtAuthGuard } from '../auth/src/lib/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/src/lib/guards/roles.guard';
 import { Roles } from '../auth/src/lib/guards/roles.decorator';
+import { StageGuard } from './guards/stage.guard';
+import { RoleGuard } from './guards/role.guard';
 import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
@@ -40,7 +42,7 @@ export class ApplicationsController {
   @ApiOperation({ summary: 'Get application by ID' })
   @ApiResponse({ status: 200, type: ApplicationDto })
   async findOne(@Param('id') id: string) {
-    return this.applicationsService.findOne(id);
+    return this.appService.findOne(id);
   }
 
   @Post()
@@ -49,7 +51,7 @@ export class ApplicationsController {
   @ApiResponse({ status: 201, type: ApplicationDto })
   async create(@Req() req, @Body() dto: CreateApplicationDto) {
     // تحقق من اكتمال الملف الشخصي قبل إنشاء الطلب
-    const profile = await this.applicationsService.getUserProfile(req.user.id);
+    const profile = await this.appService.getUserProfile(req.user.id);
     if (!profile || profile.status !== 'APPROVED') {
       throw new BadRequestException(
         'Cannot create application before completing profile',
@@ -61,7 +63,7 @@ export class ApplicationsController {
   @ApiOperation({ summary: 'Get my applications' })
   @ApiResponse({ status: 200, type: [ApplicationDto] })
   findAll(@Req() req) {
-    return this.applicationsService.findAll(req.user.id);
+    return this.appService.findAll(req.user.id);
   }
 
   @Patch(':id')
@@ -91,23 +93,17 @@ export class ApplicationsController {
   @UseGuards(RolesGuard)
   @Roles('admin', 'reviewer')
   findSubmitted() {
-    return this.applicationsService.findSubmitted();
+    return this.appService.findSubmitted();
   }
 
   @Post(':id/review')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'reviewer')
-  async reviewApplication(
-    @Param('id') id: string,
-    @Req() req,
-    @Body('decision') decision: 'APPROVED' | 'REJECTED' | 'REQUEST_CHANGES',
-    @Body('comment') comment?: string,
-  ) {
-    return this.appService.reviewApplication(
+  @UseGuards(StageGuard, new RoleGuard(['REGISTRAR', 'REVIEWER', 'ACCOUNTANT']))
+  reviewApplication(@Param('id') id: string, @Body() body: any) {
+    return this.service.reviewApplication(
       id,
-      req.user.id,
-      decision,
-      comment,
+      body.reviewerId,
+      body.decision,
+      body.comment,
     );
   }
 

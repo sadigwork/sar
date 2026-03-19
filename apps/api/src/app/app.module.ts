@@ -8,6 +8,7 @@ import { AuthModule } from '../../../../libs/domain/auth/src/lib/auth.module';
 import { ProfilesModule } from '../../../../libs/domain/profiles/index';
 import { DashboardModule } from '../../../../libs/domain/dashboard/dashboard.module';
 import { ApplicationsModule } from '../../../../libs/domain/applications/applications.module';
+import { DocumentsModule } from '../../../../libs/domain/documents/index';
 // import { AuthModule } from '@sacrs/domain/auth';
 import { ConfigModule } from '@nestjs/config';
 
@@ -19,6 +20,7 @@ import { ConfigModule } from '@nestjs/config';
     ProfilesModule,
     ApplicationsModule,
     DashboardModule,
+    DocumentsModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],

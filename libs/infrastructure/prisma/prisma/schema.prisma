@@ -77,6 +77,7 @@ model Application {
 
   type   ApplicationType
   status ApplicationStatus @default(DRAFT)
+  currentStage ReviewStage?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -95,14 +96,22 @@ model ApplicationReview {
   applicationId String
   reviewerId    String
 
-  role     Role
+  role  Role
+  stage ReviewStage
+
   decision ReviewDecision
   comment  String?
+
+  // 🔥 Admin Override
+  isOverride Boolean @default(false)
+  overrideReason String?
 
   createdAt DateTime @default(now())
 
   application Application @relation(fields: [applicationId], references: [id])
   reviewer    User        @relation(fields: [reviewerId], references: [id])
+
+  @@index([applicationId, stage])
 }
 
 enum ProfileStatus {
@@ -158,6 +167,7 @@ model Document {
   fileUrl String
 
   status DocumentStatus @default(PENDING)
+  reviews DocumentReview[]
 
   createdAt DateTime @default(now())
 
@@ -287,3 +297,43 @@ model Experience {
 
   profile Profile @relation(fields: [profileId], references: [id])
 }
+
+model DocumentReview {
+  id String @id @default(uuid())
+
+  documentId String
+  reviewerId String
+
+  decision ReviewDecision
+  comment  String?
+  stage ReviewStage
+
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+  reviewer User @relation(fields: [reviewerId], references: [id])
+}
+
+model ProfileReview {
+  id String @id @default(uuid())
+
+  profileId String
+  reviewerId String
+
+  decision ReviewDecision
+  comment String?
+  stage ReviewStage
+
+  createdAt DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id])
+  reviewer User @relation(fields: [reviewerId], references: [id])
+}
+
+enum ReviewStage {
+  REGISTRAR_REVIEW
+  REVIEWER_REVIEW
+  FINANCE_REVIEW
+  ADMIN_REVIEW
+}
+

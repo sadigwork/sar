@@ -9,12 +9,16 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { ReviewApplicationDto } from './dto/review-application.dto';
 import { ProfileStatus } from '../profiles/index';
+import { WorkflowService } from '../workflow/index';
 import { PaymentStatus, PaymentMethod } from '../payments/index';
 import { ApplicationStatus, ProfileStatus } from '@prisma/client';
 
 @Injectable()
 export class ApplicationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workflowService: WorkflowService,
+  ) {}
 
   // =========================
   // Create Application
@@ -83,7 +87,7 @@ export class ApplicationsService {
 
     return this.prisma.application.update({
       where: { id: applicationId },
-      data: { status: 'SUBMITTED', submittedAt: new Date() },
+      data: { status: ApplicationStatus.SUBMITTED, submittedAt: new Date() },
     });
   }
 
@@ -101,49 +105,35 @@ export class ApplicationsService {
     });
     if (!app) throw new NotFoundException('Application not found');
 
-    // تسجيل المراجعة
+    // 🔹 جلب المرحلة الحالية من workflowService
+    const stage = await this.workflowService.getCurrentStage(applicationId);
+
+    // 🔹 التحقق من مراجعة نفس المرحلة مسبقًا
+    const existing = await this.prisma.applicationReview.findFirst({
+      where: { applicationId, reviewerId, stage },
+    });
+    if (existing)
+      throw new BadRequestException('You already reviewed this stage');
+
+    // 🔹 حفظ المراجعة
+    const reviewer = await this.prisma.user.findUnique({
+      where: { id: reviewerId },
+    });
     const review = await this.prisma.applicationReview.create({
       data: {
         applicationId,
         reviewerId,
-        role: 'REVIEWER', // أو ADMIN حسب من يراجع
+        role: reviewer?.role || 'REVIEWER',
+        stage,
         decision,
         comment,
       },
     });
 
-    // تحديث حالة التطبيق
-    let newStatus = app.status;
-    if (decision === 'APPROVED') newStatus = 'REVIEWER_REVIEW';
-    if (decision === 'REJECTED') newStatus = 'REJECTED';
-    if (decision === 'REQUEST_CHANGES') newStatus = 'DRAFT';
+    // 🔹 تشغيل Workflow Engine لمعالجة الحالة
+    await this.workflowService.processAfterReview(applicationId, stage);
 
-    await this.prisma.application.update({
-      where: { id: applicationId },
-      data: { status: newStatus },
-    });
-
-    return { review, newStatus };
-  }
-
-  async review(id: string, dto: ReviewApplicationDto) {
-    const app = await this.prisma.application.findUnique({ where: { id } });
-    if (!app) throw new NotFoundException('Application not found');
-
-    return this.prisma.application.update({
-      where: { id },
-      data: {
-        status: dto.decision,
-        reviews: {
-          create: {
-            reviewerId: 'SYSTEM',
-            decision: dto.decision,
-            comment: dto.comment,
-            role: 'REVIEWER',
-          },
-        },
-      },
-    });
+    return review;
   }
 
   // =========================
