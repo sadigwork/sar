@@ -33,8 +33,9 @@ import {
 import { ProfileDto } from './profiles.swagger';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CurrentUser } from '../auth/src/index';
 
-ApiTags('Profiles');
+@ApiTags('👤 Profile Setup')
 @ApiBearerAuth()
 @Controller('profiles')
 @UseGuards(JwtAuthGuard)
@@ -44,8 +45,9 @@ export class ProfilesController {
   @Get('me')
   @ApiOperation({ summary: 'Get my profile' })
   @ApiResponse({ status: 200, type: ProfileDto })
-  getMyProfile(@Req() req) {
-    return this.profilesService.findByUserId(req.user.id);
+  async getMyProfile(@CurrentUser('sub') userId: string) {
+    // const userId = req.user.sub; // هل الـ JWT تم التحقق منه؟
+    return this.profilesService.getMyProfile(userId);
   }
 
   @Post()
@@ -53,7 +55,7 @@ export class ProfilesController {
   @ApiBody({ type: CreateProfileDto })
   @ApiResponse({ status: 201, type: ProfileDto })
   create(@Req() req, @Body() dto: CreateProfileDto) {
-    return this.profilesService.create(req.user.id, dto);
+    return this.profilesService.create(req.user.sub, dto);
   }
 
   @Patch('me')
@@ -63,31 +65,31 @@ export class ProfilesController {
     if (dto.dateOfBirth) {
       dto.dateOfBirth = new Date(dto.dateOfBirth) as any;
     }
-    return this.profilesService.update(req.user.id, dto);
+    return this.profilesService.update(req.user.sub, dto);
   }
 
   @Post('me/submit')
   @ApiOperation({ summary: 'Submit profile for review' })
   @ApiResponse({ status: 200, type: ProfileDto })
   submit(@Req() req, @Body() dto: SubmitProfileDto) {
-    return this.profilesService.submitForReview(req.user.id, dto);
+    return this.profilesService.submitForReview(req.user.sub, dto);
   }
 
   @Post('me/avatar')
   @UseInterceptors(FileInterceptor('avatar'))
   uploadAvatar(@Req() req, @UploadedFile() file: Express.Multer.File) {
-    return this.profilesService.uploadAvatar(req.user.id, file);
+    return this.profilesService.uploadAvatar(req.user.sub, file);
   }
 
   @Post('education')
   addEducation(@Req() req, @Body() dto: CreateEducationDto) {
-    return this.profilesService.addEducation(req.user.id, dto);
+    return this.profilesService.addEducation(req.user.sub, dto);
   }
 
   @Post('experience')
   addExperience(@Req() req, @Body() dto: CreateExperienceDto) {
     console.log('BODY:', dto);
-    return this.profilesService.addExperience(req.user.id, dto);
+    return this.profilesService.addExperience(req.user.sub, dto);
   }
 
   // ===== ADMIN =====
@@ -119,7 +121,7 @@ export class ProfilesController {
 
   @Get('intelligence')
   getProfileIntelligence(@Req() req) {
-    return this.profilesService.getProfileIntelligence(req.user.id);
+    return this.profilesService.getProfileIntelligence(req.user.sub);
   }
 
   @Get('dashboard/levels')

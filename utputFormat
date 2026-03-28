@@ -1,0 +1,26 @@
+HTTP/1.1 404 Not Found
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 99
+Date: Tue, 24 Mar 2026 08:15:28 GMT
+X-RateLimit-Reset: 1774341029
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 177
+ETag: W/"b1-Q2Ji/8p9bKLpItRFiZ/TkSbifQw"
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":false,"statusCode":404,"message":{"message":"Cannot POST /workflow/","error":"Not Found","statusCode":404},"path":"/workflow/","timestamp":"2026-03-24T08:15:28.987Z"}

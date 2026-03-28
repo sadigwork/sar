@@ -6,12 +6,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/src/lib/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
-import { UpdateApplicationDto } from './dto/update-application.dto';
-import { ReviewApplicationDto } from './dto/review-application.dto';
-import { ProfileStatus } from '../profiles/index';
 import { WorkflowService } from '../workflow/index';
 import { PaymentStatus, PaymentMethod } from '../payments/index';
 import { ApplicationStatus, ProfileStatus } from '@prisma/client';
+import { getNextState } from '../workflow/application-workflow';
+import { buildNotification } from '../workflow/notification-factory';
 
 @Injectable()
 export class ApplicationsService {
@@ -20,17 +19,70 @@ export class ApplicationsService {
     private readonly workflowService: WorkflowService,
   ) {}
 
+  async getApplicationById(id: string, userId: string) {
+    const app = await this.prisma.application.findFirst({
+      where: {
+        id,
+        userId, // 🔥 مهم للأمان
+      },
+      include: {
+        profile: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!app) {
+      throw new NotFoundException('Application not found');
+    }
+
+    return app;
+  }
+
+  async getMyApplications(userId: string) {
+    const applications = this.prisma.application.findMany({
+      where: {
+        userId: userId, // ✅ أهم شيء
+      },
+      include: {
+        profile: {
+          select: {
+            fullNameAr: true,
+            fullNameEn: true,
+          },
+        },
+        reviews: true,
+        documents: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      success: true,
+      data: applications,
+    };
+  }
+
   async findByUserId(userId: string) {
     return this.prisma.application.findMany({
       where: { userId },
-      include: { profile: true },
+      include: {
+        profile: {
+          select: {
+            fullNameAr: true,
+            fullNameEn: true,
+          },
+        },
+        reviews: true,
+        documents: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
   // =========================
   // Create Application
   // =========================
-  async createApplication(userId: string, dto: CreateApplicationDto) {
+  async createApplication(@Req() req, @Body() dto: CreateApplicationDto) {
+    const userId = req.user.sub;
+
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
       include: { educations: true, experiences: true, documents: true },
@@ -224,5 +276,184 @@ export class ApplicationsService {
 
   async getUserProfile(userId: string) {
     return this.prisma.profile.findUnique({ where: { userId } });
+  }
+
+  async performAction(id: string, user: any, action: string) {
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+    });
+
+    const next = getNextState(
+      {
+        status: app.status,
+        stage: app.currentStage,
+      },
+      user.role,
+      action,
+    );
+
+    if (!next) {
+      throw new Error('Invalid transition');
+    }
+
+    const updated = await this.prisma.application.update({
+      where: { id },
+      data: {
+        status: next.status,
+        currentStage: next.stage,
+      },
+    });
+
+    // 🔔 Notification
+    const notification = buildNotification({
+      action,
+      application: updated,
+    });
+
+    await this.prisma.notification.create({
+      data: {
+        userId: app.userId,
+        ...notification,
+        entity: 'APPLICATION',
+        entityId: app.id,
+      },
+    });
+
+    // 🧾 Activity Log
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action,
+        entity: 'APPLICATION',
+        entityId: app.id,
+        metadata: {
+          from: app.status,
+          to: next.status,
+          stage: next.stage,
+        },
+      },
+    });
+
+    return updated;
+  }
+
+  async updateApplication(
+    userId: string,
+    applicationId: string,
+    dto: { step: string; data: any },
+  ) {
+    const app = await this.prisma.application.findFirst({
+      where: {
+        id: applicationId,
+      },
+    });
+
+    if (!app) {
+      throw new NotFoundException('Application not found');
+    }
+
+    const profileId = app.profileId;
+
+    switch (dto.step) {
+      // =========================
+      // PERSONAL
+      // =========================
+      case 'personal':
+        await this.prisma.profile.update({
+          where: { id: profileId },
+          data: {
+            fullNameAr: dto.data.fullNameAr,
+            fullNameEn: dto.data.fullNameEn,
+            nationalId: dto.data.nationalId,
+            phone: dto.data.phoneNumber,
+            address: dto.data.address,
+          },
+        });
+        break;
+
+      // =========================
+      // EDUCATION
+      // =========================
+      case 'education':
+        await this.prisma.education.deleteMany({
+          where: { profileId },
+        });
+
+        await this.prisma.education.createMany({
+          data: dto.data.map((edu) => ({
+            ...edu,
+            profileId,
+          })),
+        });
+        break;
+
+      // =========================
+      // EXPERIENCE
+      // =========================
+      case 'experience':
+        await this.prisma.experience.deleteMany({
+          where: { profileId },
+        });
+
+        await this.prisma.experience.createMany({
+          data: dto.data.map((exp) => ({
+            ...exp,
+            profileId,
+          })),
+        });
+        break;
+
+      // =========================
+      // DOCUMENTS
+      // =========================
+      case 'documents':
+        await this.prisma.document.deleteMany({
+          where: { profileId },
+        });
+
+        await this.prisma.document.createMany({
+          data: dto.data.map((doc) => ({
+            ...doc,
+            profileId,
+          })),
+        });
+        break;
+
+      // =========================
+      // CERTIFICATIONS
+      // =========================
+      case 'certifications':
+        await this.prisma.certification.deleteMany({
+          where: { profileId },
+        });
+
+        await this.prisma.certification.createMany({
+          data: dto.data.map((cert) => ({
+            ...cert,
+            profileId,
+          })),
+        });
+        break;
+
+      default:
+        throw new BadRequestException('Invalid step');
+    }
+
+    // optional: تحديث progress
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: profileId },
+      include: {
+        educations: true,
+        experiences: true,
+        documents: true,
+      },
+    });
+
+    const completion = this.calculateProfileCompletion(profile);
+
+    return {
+      message: 'Step saved successfully',
+      completion,
+    };
   }
 }

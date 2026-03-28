@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Inter } from 'next/font/google';
+// import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
@@ -8,14 +8,22 @@ import { AuthProvider } from '@/components/auth-provider';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import './global.css';
-import './api/interceptor';
 
-const inter = Inter({ subsets: ['latin'] });
+// const inter = Inter({
+//   className: 'font-sans',
+//   // subsets: ['latin'],
+//   // display: 'swap',
+//   // fallback: ['Arial', 'sans-serif'], // 👈 حل مؤقت
+// });
+
+const inter = {
+  className: 'font-sans',
+};
 
 export const metadata: Metadata = {
   title: 'PRMS - Professional Registration Management System',
   description: 'Registration system for agricultural engineers',
-  generator: 'v0.dev',
+  generator: 'sadig',
 };
 
 export default function RootLayout({

@@ -8,9 +8,10 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthApi } from '@/app/api/auth';
+import { AuthApi } from '@/lib/auth';
+import { tokenStorage } from '@/lib/token-storage';
 
-type Role = 'User' | 'Reviewer' | 'Admin' | 'Registrar';
+type Role = 'USER' | 'REVIEWER' | 'ADMIN' | 'REGISTRAR';
 
 type User = {
   id: string;
@@ -22,7 +23,8 @@ type User = {
 
 type AuthContextType = {
   user: User | null;
-  setUser: (user: User | null) => avoid;
+  token: string | null;
+  setUser: (user: User | null) => void;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -34,6 +36,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -42,14 +45,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('accessToken');
+    const storedToken = localStorage.getItem('accessToken');
 
-    if (storedUser && token) {
+    if (storedUser && storedToken) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsedUser: User = JSON.parse(storedUser);
+        setUser(parsedUser);
+        setToken(storedToken);
+        // redirectByRole(parsedUser.role); // Redirect immediately if already logged in
       } catch {
-        localStorage.removeItem('user');
-        localStorage.removeItem('accessToken');
+        tokenStorage.clear();
       }
     }
 
@@ -69,22 +74,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       console.log('LOGIN RESPONSE', res);
 
-      const user: User = res.data?.user || res.user;
-      const token = res.data?.tokens?.access_token || res.tokens?.access_token;
+      // ⚡ تحديث الوصول للبنية الجديدة
+      const user: User = res.data?.data?.user;
+      const tokens = res.data?.data?.tokens;
 
-      if (!user || !token) {
-        console.error('Login successful', res);
+      if (!user || !tokens?.accessToken) {
+        console.error('Login successful but invalid response', res);
         throw new Error('Invalid login response');
       }
 
+      // حفظ البيانات في localStorage و tokenStorage
       localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('accessToken', token);
+      tokenStorage.setTokens(tokens.accessToken, tokens.refreshToken);
 
       setUser(user);
+      setToken(tokens.accessToken);
 
       redirectByRole(user.role);
+      console.log('تم تسجيل الدخول بنجاح!');
     } catch (error) {
       console.error('Login failed', error);
+      console.log(error || 'Login failed');
       throw error;
     } finally {
       setIsLoading(false);
@@ -104,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       });
 
-      router.push('/login');
+      router.replace('/login');
     } catch (error) {
       console.error('Register failed', error);
       throw error;
@@ -121,12 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await AuthApi.logout();
     } catch {}
 
-    localStorage.removeItem('user');
-    localStorage.removeItem('accessToken');
-
+    tokenStorage.clear();
     setUser(null);
+    setToken(null);
 
-    router.push('/login');
+    router.replace('/login');
   };
 
   /**
@@ -134,20 +143,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const redirectByRole = (role: Role) => {
     switch (role) {
-      case 'admin':
-        router.push('/admin/dashboard');
+      case 'ADMIN':
+        router.replace('/admin/dashboard');
         break;
 
-      case 'reviewer':
-        router.push('/reviewer/dashboard');
+      case 'REVIEWER':
+        router.replace('/reviewer/dashboard');
         break;
 
-      case 'registrar':
-        router.push('/registrar/dashboard');
+      case 'REGISTRAR':
+        router.replace('/registrar/dashboard');
         break;
 
       default:
-        router.push('/dashboard');
+        router.replace('/dashboard');
     }
   };
 
@@ -155,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        token,
         setUser,
         isLoading,
         login,

@@ -24,9 +24,13 @@ import {
   ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger';
-import { ApplicationDto } from './applications.swagger';
+import {
+  ApplicationDto,
+  CreateApplicationSwaggerDto,
+} from './applications.swagger';
+import { ReviewDto, PaymentDto } from '../workflow/workflow.swagger';
 
-@ApiTags('Applications')
+@ApiTags('🧾 Applications Workflow')
 @ApiBearerAuth()
 @Controller('applications')
 @UseGuards(JwtAuthGuard)
@@ -34,59 +38,67 @@ export class ApplicationsController {
   constructor(private readonly appService: ApplicationsService) {}
 
   @Get('me')
+  @ApiOperation({ summary: 'Get my applications' })
+  @ApiResponse({ status: 200, type: [ApplicationDto] })
   async getMyApplications(@Req() req) {
-    return this.appService.getMyApplications(req.user.id);
+    return this.appService.getMyApplications(req.user.sub);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get application by ID' })
   @ApiResponse({ status: 200, type: ApplicationDto })
-  async findOne(@Param('id') id: string) {
-    return this.appService.findOne(id);
+  async getApplicationById(@Param('id') id: string, @Req() req) {
+    return this.appService.getApplicationById(id, req.user.sub);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create new application' })
-  @ApiBody({ type: CreateApplicationDto })
+  @ApiOperation({
+    summary: 'Create Application',
+    description: 'إنشاء طلب جديد (الحالة: DRAFT)',
+  })
+  @ApiBody({ type: CreateApplicationSwaggerDto })
   @ApiResponse({ status: 201, type: ApplicationDto })
   async create(@Req() req, @Body() dto: CreateApplicationDto) {
     // تحقق من اكتمال الملف الشخصي قبل إنشاء الطلب
     const profile = await this.appService.getUserProfile(req.user.id);
-    if (!profile || profile.status !== 'APPROVED') {
-      throw new BadRequestException(
-        'Cannot create application before completing profile',
-      );
+    if (!profile) {
+      throw new BadRequestException('Profile not found');
     }
-    return this.appService.createApplication(req.user.id, dto);
-  }
-  @Get()
-  @ApiOperation({ summary: 'Get my applications' })
-  @ApiResponse({ status: 200, type: [ApplicationDto] })
-  findAll(@Req() req) {
-    return this.appService.findAll(req.user.id);
+
+    // if (profile.status !== 'APPROVED') {
+    //   throw new BadRequestException(
+    //     'Cannot create application before profile approval',
+    //   );
+    // }
+    return this.appService.createApplication(req.user.id, {
+      ...dto,
+      profileId: profile.id,
+    });
   }
 
   @Patch(':id')
   async update(
     @Req() req,
     @Param('id') id: string,
-    @Body() dto: UpdateApplicationDto,
+    @Body() dto: { step: string; data: UpdateApplicationDto },
   ) {
-    return this.appService.updateApplication(req.user.id, id, dto);
+    return this.appService.updateApplication(req.user.sub, id, dto);
   }
 
+  @ApiOperation({
+    summary: 'Submit Application',
+    description: `
+  إرسال الطلب للمراجعة
+
+  الحالة:
+  DRAFT → SUBMITTED
+  `,
+  })
   @Post(':id/submit')
   async submit(@Req() req, @Param('id') id: string) {
     return this.appService.submitApplication(req.user.id, id);
   }
-
-  // ===== Admin / Reviewer routes =====
-  // @Get('submitted/all')
-  // @UseGuards(RolesGuard)
-  // @Roles('admin', 'reviewer')
-  // async submittedApplications() {
-  //   return this.appService.getSubmittedApplications();
-  // }
 
   // الإدارة والمراجعة
   @Get('submitted')
@@ -97,6 +109,16 @@ export class ApplicationsController {
   }
 
   @Post(':id/review')
+  @ApiOperation({
+    summary: 'Review Application',
+    description: `
+  يقوم المراجع باتخاذ قرار
+
+  الحالات:
+  UNDER_REVIEW → APPROVED / REJECTED
+  `,
+  })
+  @ApiBody({ type: ReviewDto })
   @UseGuards(StageGuard, new RoleGuard(['REGISTRAR', 'REVIEWER', 'ACCOUNTANT']))
   reviewApplication(@Param('id') id: string, @Body() body: any) {
     return this.appService.reviewApplication(
@@ -108,7 +130,18 @@ export class ApplicationsController {
   }
 
   // ===== Payments =====
+
   @Post(':id/pay')
+  @ApiOperation({
+    summary: 'Submit Payment',
+    description: `
+  دفع رسوم الطلب
+
+  الحالة:
+  APPROVED → PAYMENT_PENDING
+  `,
+  })
+  @ApiBody({ type: PaymentDto })
   async pay(
     @Param('id') id: string,
     @Req() req,
@@ -119,6 +152,22 @@ export class ApplicationsController {
   }
 
   @Patch('payments/:id/verify')
+  @ApiOperation({
+    summary: 'Verify Payment',
+    description: `
+  يقوم المحاسب بتأكيد الدفع
+
+  الحالة:
+  PAYMENT_PENDING → COMPLETED
+  `,
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        approve: true,
+      },
+    },
+  })
   @UseGuards(RolesGuard)
   @Roles('admin', 'accountant', 'finance_manager')
   async verifyPayment(
@@ -126,5 +175,15 @@ export class ApplicationsController {
     @Body('approve') approve: boolean,
   ) {
     return this.appService.verifyPayment(paymentId, 'SYSTEM', approve);
+  }
+
+  @Post(':id/action')
+  @UseGuards(JwtAuthGuard)
+  async performAction(
+    @Param('id') id: string,
+    @Body() body: { action: string },
+    @Req() req,
+  ) {
+    return this.appService.performAction(id, req.user, body.action);
   }
 }

@@ -1,131 +1,189 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/src/index';
-import { ReviewDecision, ReviewStage } from '@prisma/client';
+import {
+  ApplicationStatus,
+  ReviewDecision,
+  Role,
+  ApplicationType,
+} from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class WorkflowService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
-  // 🔍 جلب المرحلة الحالية
-  async getCurrentStage(applicationId: string): Promise<ReviewStage | null> {
-    const app = await this.prisma.application.findUnique({
-      where: { id: applicationId },
-    });
-
-    return app.currentStage;
-  }
-
-  // ✅ هل المرحلة مكتملة؟
-  async isStageCompleted(applicationId: string, stage: ReviewStage) {
-    const reviews = await this.prisma.applicationReview.findMany({
-      where: { applicationId, stage },
-    });
-
-    if (reviews.length === 0) return false;
-
-    return reviews.every((r) => r.decision === ReviewDecision.APPROVED);
-  }
-
-  // ❌ هل هناك رفض؟
-  async hasRejection(applicationId: string, stage: ReviewStage) {
-    const reviews = await this.prisma.applicationReview.findMany({
-      where: { applicationId, stage },
-    });
-
-    return reviews.some((r) => r.decision === ReviewDecision.REJECTED);
-  }
-
-  // 🔁 الانتقال للمرحلة التالية
-  async moveToNextStage(applicationId: string) {
-    const stages = [
-      'REGISTRAR_REVIEW',
-      'REVIEWER_REVIEW',
-      'FINANCE_REVIEW',
-      'ADMIN_REVIEW',
-    ];
-
-    const app = await this.prisma.application.findUnique({
-      where: { id: applicationId },
-    });
-
-    const currentIndex = stages.indexOf(app.currentStage as any);
-
-    // نهاية الرحلة
-    if (currentIndex === stages.length - 1) {
-      await this.prisma.application.update({
-        where: { id: applicationId },
-        data: { status: 'APPROVED' },
-      });
-      return;
-    }
-
-    const nextStage = stages[currentIndex + 1];
-
-    await this.prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        currentStage: nextStage as any,
-      },
-    });
-  }
-
-  // 🔥 القرار الذكي بعد كل Review
-  async processAfterReview(applicationId: string, stage: ReviewStage) {
-    // ❌ رفض → انتهى
-    if (await this.hasRejection(applicationId, stage)) {
-      await this.prisma.application.update({
-        where: { id: applicationId },
-        data: { status: 'REJECTED' },
-      });
-      return;
-    }
-
-    // ✅ كلهم وافقوا → التالي
-    if (await this.isStageCompleted(applicationId, stage)) {
-      await this.moveToNextStage(applicationId);
-    }
-  }
-
-  // 🧨 Admin Override
-  async adminOverride(
-    applicationId: string,
-    decision: ReviewDecision,
-    adminId: string,
-    reason: string,
-  ) {
-    // تسجيل Review خاص
-    await this.prisma.applicationReview.create({
-      data: {
-        applicationId,
-        reviewerId: adminId,
-        role: 'ADMIN',
-        stage: 'ADMIN_REVIEW',
-        decision,
-        isOverride: true,
-        overrideReason: reason,
-      },
-    });
-
-    // تحديث مباشر
-    await this.prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        status: decision === 'APPROVED' ? 'APPROVED' : 'REJECTED',
-      },
-    });
-
-    // 🔐 Log
-    await this.prisma.activityLog.create({
-      data: {
-        userId: adminId,
-        action: 'ADMIN_OVERRIDE',
-        entity: 'Application',
-        entityId: applicationId,
-        metadata: {
-          decision,
-          reason,
+  // 🧠 جلب workflow
+  async getWorkflow(applicationType: ApplicationType) {
+    const workflow = await this.prisma.workflow.findFirst({
+      where: { applicationType },
+      include: {
+        stages: {
+          orderBy: { order: 'asc' },
         },
       },
+    });
+
+    if (!workflow) {
+      throw new BadRequestException('Workflow not configured');
+    }
+
+    return workflow;
+  }
+
+  // 🔍 المرحلة الحالية
+  async getCurrentStage(applicationId: string) {
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+    });
+
+    if (!app) throw new BadRequestException('Application not found');
+
+    const workflow = await this.getWorkflow(app.type);
+
+    return workflow.stages.find((s) => s.code === app.currentStage);
+  }
+
+  // 🔁 المرحلة التالية
+  getNextStage(workflow: any, currentStage: any) {
+    const index = workflow.stages.findIndex((s) => s.id === currentStage.id);
+    return workflow.stages[index + 1] || null;
+  }
+
+  // 🔐 صلاحيات
+  canReview(stage: any, role: Role) {
+    return stage.requiredRole === role;
+  }
+
+  // ✅ اكتمال المرحلة
+  async isStageCompleted(applicationId: string, stage: any) {
+    const approvals = await this.prisma.applicationReview.count({
+      where: {
+        applicationId,
+        stage: stage.code,
+        decision: ReviewDecision.APPROVED,
+      },
+    });
+
+    return approvals >= stage.minApprovals;
+  }
+
+  // 🚀 تنفيذ review
+  async processReview(params: {
+    applicationId: string;
+    reviewerId: string;
+    role: Role;
+    decision: ReviewDecision;
+    comment?: string;
+  }) {
+    const { applicationId, reviewerId, role, decision, comment } = params;
+
+    const application = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+    });
+
+    if (!application) {
+      throw new BadRequestException('Application not found');
+    }
+
+    const workflow = await this.getWorkflow(application.type);
+
+    const currentStage = workflow.stages.find(
+      (s) => s.code === application.currentStage,
+    );
+
+    if (!currentStage) {
+      throw new BadRequestException('Invalid stage');
+    }
+
+    if (!this.canReview(currentStage, role)) {
+      throw new BadRequestException('Not allowed');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 📝 سجل review
+      await tx.applicationReview.create({
+        data: {
+          applicationId,
+          reviewerId,
+          role,
+          stage: currentStage.code,
+          decision,
+          comment,
+        },
+      });
+
+      // ❌ رفض
+      if (decision === ReviewDecision.REJECTED) {
+        this.eventEmitter.emit(
+          'workflow.rejected',
+          new WorkflowEvent(applicationId, 'REJECTED', {
+            stage: currentStage.code,
+          }),
+        );
+        return tx.application.update({
+          where: { id: applicationId },
+          data: {
+            status: ApplicationStatus.REJECTED,
+            currentStage: null,
+          },
+        });
+      }
+
+      // 🔁 تعديل
+      if (decision === ReviewDecision.REQUEST_CHANGES) {
+        this.eventEmitter.emit(
+          'workflow.stage.changed',
+          new WorkflowEvent(applicationId, 'STAGE_CHANGED', {
+            from: currentStage.code,
+            to: nextStage.code,
+          }),
+        );
+        return tx.application.update({
+          where: { id: applicationId },
+          data: {
+            status: ApplicationStatus.SUBMITTED,
+          },
+        });
+      }
+
+      // ✅ تحقق من اكتمال المرحلة
+      const completed = await this.isStageCompleted(
+        applicationId,
+        currentStage,
+      );
+
+      if (!completed) {
+        return { message: 'Waiting for more approvals' };
+      }
+
+      // 🔁 المرحلة التالية
+      const nextStage = this.getNextStage(workflow, currentStage);
+
+      // 🎉 النهاية
+      if (!nextStage) {
+        this.eventEmitter.emit(
+          'workflow.completed',
+          new WorkflowEvent(applicationId, 'APPROVED'),
+        );
+        return tx.application.update({
+          where: { id: applicationId },
+          data: {
+            status: ApplicationStatus.APPROVED,
+            currentStage: null,
+          },
+        });
+      }
+
+      return tx.application.update({
+        where: { id: applicationId },
+        data: {
+          currentStage: nextStage.code,
+          status: ApplicationStatus.IN_REVIEW,
+        },
+      });
     });
   }
 }

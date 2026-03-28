@@ -11,6 +11,9 @@ import { ApplicationsModule } from '../../../../libs/domain/applications/applica
 import { DocumentsModule } from '../../../../libs/domain/documents/index';
 // import { AuthModule } from '@sacrs/domain/auth';
 import { ConfigModule } from '@nestjs/config';
+import { WorkflowModule } from '../../../../libs/domain/workflow';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { NotificationsModule } from '../../../../libs/domain/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -21,7 +24,10 @@ import { ConfigModule } from '@nestjs/config';
     ApplicationsModule,
     DashboardModule,
     DocumentsModule,
+    WorkflowModule,
+    NotificationsModule,
     ConfigModule.forRoot({ isGlobal: true }),
+    EventEmitterModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/components/language-provider';
 import { useAuth } from '@/components/auth-provider';
-import { AuthApi } from '../api/auth';
+import { AuthApi } from '../../lib/auth';
 import { getApiErrorMessage } from '../../lib/api-error';
 
 const formSchema = z

@@ -33,7 +33,8 @@
     "src/**/*.jsx",
     "../../apps/web/.next/types/**/*.ts",
     "../../dist/apps/web/.next/types/**/*.ts",
-    "next-env.d.ts"
+    "next-env.d.ts",
+    "src/app/dashboard/page.tsx.old"
   ],
   "exclude": [
     "out-tsc",

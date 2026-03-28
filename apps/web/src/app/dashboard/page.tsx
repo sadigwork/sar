@@ -1,17 +1,26 @@
 'use client';
+
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProfile } from '@/hooks/useProfile';
-import { useApplications } from '@/hooks/useApplications';
+import { useApplications } from '@/hooks/use-applications';
+import { useNotifications } from '@/hooks/use-notifications';
+import { useProfile } from '@/hooks/use-profile';
+import { useAuth } from '@/components/auth-provider';
 import { useLanguage } from '@/components/language-provider';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ApplicationTimeline } from '@/components/application/application-timeline';
+import { buildTimeline } from '@/lib/workflow/application-timeline';
 import {
   Card,
   CardHeader,
   CardContent,
   CardTitle,
   CardFooter,
+  CardDescription,
 } from '@/components/ui/card';
 import {
   Clock,
@@ -19,21 +28,62 @@ import {
   XCircle,
   AlertCircle,
   FileText,
-  GraduationCap,
   Award,
-  ChevronRight,
-  Bell,
+  GraduationCap,
+  Plus,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 export default function DashboardPage() {
-  const { t } = useLanguage();
   const router = useRouter();
-  const { profile, isLoading: profileLoading } = useProfile();
-  const { applications, isLoading: appsLoading } = useApplications();
+  const { t } = useLanguage();
 
-  const isLoading = profileLoading || appsLoading;
+  const { user, token } = useAuth();
+  const {
+    profile,
+    isLoading: loadingProfile,
+    isError: errorProfile,
+  } = useProfile();
+  const {
+    applications,
+    isLoading: loadingApplications,
+    isError: errorApplications,
+  } = useApplications();
+  const {
+    notifications,
+    isLoading: loadingNotifications,
+    isError: errorNotifications,
+  } = useNotifications();
 
+  // Console orginize log
+  useEffect(() => {
+    console.group('DASHBOARD DATA');
+    console.log('USER:', user);
+    console.log('TOKEN:', token);
+    console.log('PROFILE:', profile);
+    console.log('APPLICATIONS:', applications);
+    console.log('NOTIFICATIONS:', notifications);
+    console.groupEnd();
+  }, [user, token, profile, applications, notifications]);
+
+  if (loadingProfile || loadingApplications || loadingNotifications || !token) {
+    return <p>Loading dashboard data...</p>;
+  }
+
+  if (errorProfile || errorApplications || errorNotifications) {
+    return <p>Error loading dashboard data. Check console for details.</p>;
+  }
+
+  // const safeApplications: applications || [];
+  // ترتيب حسب الأحدث
+  const sortedApplications = [...applications].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+
+  // Profile completion
   const profileCompletion = profile
     ? Math.floor(
         (((profile.fullNameAr ? 1 : 0) +
@@ -46,18 +96,35 @@ export default function DashboardPage() {
       )
     : 0;
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString(t('language') === 'en' ? 'en-US' : 'ar-SA', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+  const formatDate = (dateString?: string) =>
+    dateString
+      ? new Date(dateString).toLocaleDateString(
+          t('language') === 'en' ? 'en-US' : 'ar-SA',
+          { year: 'numeric', month: 'long', day: 'numeric' },
+        )
+      : '';
+
+  const mapStatus = (status: string) => {
+    switch (status) {
+      case 'SUBMITTED':
+      case 'REGISTRAR_REVIEW':
+      case 'REVIEWER_REVIEW':
+        return 'pending';
+      case 'APPROVED':
+        return 'approved';
+      case 'REJECTED':
+        return 'rejected';
+      case 'PAYMENT_PENDING':
+        return 'action_required';
+      default:
+        return 'pending';
+    }
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const mapped = mapStatus(status);
+
+    switch (mapped) {
       case 'pending':
         return (
           <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">
@@ -91,33 +158,7 @@ export default function DashboardPage() {
     }
   };
 
-  const getApplicationTypeIcon = (type: string) => {
-    switch (type) {
-      case 'certification':
-        return <Award className="h-5 w-5 text-primary" />;
-      case 'renewal':
-        return <FileText className="h-5 w-5 text-primary" />;
-      case 'upgrade':
-        return <GraduationCap className="h-5 w-5 text-primary" />;
-      default:
-        return <FileText className="h-5 w-5 text-primary" />;
-    }
-  };
-
-  const getApplicationTypeLabel = (type: string) => {
-    switch (type) {
-      case 'certification':
-        return t('language') === 'en' ? 'Certification' : 'شهادة';
-      case 'renewal':
-        return t('language') === 'en' ? 'Renewal' : 'تجديد';
-      case 'upgrade':
-        return t('language') === 'en' ? 'Upgrade' : 'ترقية';
-      default:
-        return type;
-    }
-  };
-
-  if (isLoading) {
+  if (loadingProfile || loadingApplications || loadingNotifications) {
     return (
       <div className="container py-10">
         <Skeleton className="h-10 w-40 mb-6" />
@@ -130,23 +171,44 @@ export default function DashboardPage() {
     );
   }
 
+  const pendingCount = sortedApplications.filter(
+    (a) => mapStatus(a.status) === 'pending',
+  ).length;
+
+  const actionCount = sortedApplications.filter(
+    (a) => mapStatus(a.status) === 'action_required',
+  ).length;
+
+  const completedCount = sortedApplications.filter((a) =>
+    ['approved', 'rejected'].includes(mapStatus(a.status)),
+  ).length;
+
   return (
     <div className="container py-10">
+      {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{t('dashboard')}</h1>
-        <Button
-          onClick={() => router.push('/application/new')}
-          className="bg-gradient-green hover:opacity-90"
-        >
-          + {t('language') === 'en' ? 'New Application' : 'طلب جديد'}
+        <div>
+          <h1 className="text-3xl font-bold">{t('dashboard')}</h1>
+          <p className="text-muted-foreground">
+            {t('language') === 'en'
+              ? 'Your dashboard'
+              : 'لوحة التحكم الخاصة بك'}
+          </p>
+        </div>
+        <Button onClick={() => router.push('/application/new')}>
+          <Plus className="mr-2 h-4 w-4" />{' '}
+          {t('language') === 'en' ? 'New Application' : 'طلب جديد'}
         </Button>
       </div>
 
-      {/* Status Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <Card className="bg-card">
+      {/* Stats Cards */}
+      <div className="grid gap-6 md:grid-cols-4 mb-8">
+        {/* Profile */}
+        <Card>
           <CardHeader>
-            <CardTitle>{t('profile')}</CardTitle>
+            <CardTitle>
+              {t('language') === 'en' ? 'Profile' : 'الملف الشخصي'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -175,9 +237,12 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card">
+        {/* Applications Count */}
+        <Card>
           <CardHeader>
-            <CardTitle>{t('applications')}</CardTitle>
+            <CardTitle>
+              {t('language') === 'en' ? 'Applications' : 'الطلبات'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center">
@@ -190,7 +255,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card">
+        {/* Pending */}
+        <Card>
           <CardHeader>
             <CardTitle>
               {t('language') === 'en' ? 'Pending Review' : 'قيد المراجعة'}
@@ -199,7 +265,10 @@ export default function DashboardPage() {
           <CardContent>
             <div className="flex justify-between items-center">
               <span className="text-3xl font-bold">
-                {applications.filter((app) => app.status === 'pending').length}
+                {
+                  applications.filter((a) => mapStatus(a.status) === 'pending')
+                    .length
+                }
               </span>
               <Clock className="h-8 w-8 text-yellow-500 opacity-50" />
             </div>
@@ -211,7 +280,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card">
+        {/* Action Required */}
+        <Card>
           <CardHeader>
             <CardTitle>
               {t('language') === 'en' ? 'Action Required' : 'إجراء مطلوب'}
@@ -221,8 +291,9 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center">
               <span className="text-3xl font-bold">
                 {
-                  applications.filter((app) => app.status === 'action_required')
-                    .length
+                  applications.filter(
+                    (a) => mapStatus(a.status) === 'action_required',
+                  ).length
                 }
               </span>
               <AlertCircle className="h-8 w-8 text-blue-500 opacity-50" />
@@ -236,24 +307,136 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Applications List */}
-      <div className="space-y-4">
-        {applications.map((app) => (
-          <Card key={app.id} className="bg-card overflow-hidden">
-            <div className="flex justify-between p-4">
-              <div>
-                {getApplicationTypeIcon(app.type)}{' '}
-                {getApplicationTypeLabel(app.type)} - {app.level}
-                <p className="text-sm text-muted-foreground">
-                  {t('language') === 'en' ? 'Submitted on' : 'تم التقديم في'}:{' '}
-                  {formatDate(app.createdAt)}
-                </p>
+      {/* Notifications */}
+      <Card className="bg-card mb-6">
+        <CardHeader>
+          <CardTitle>
+            {t('language') === 'en' ? 'Notifications' : 'الإشعارات'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {(notifications || []).length > 0 ? (
+            (notifications || []).map((n) => (
+              <div key={n.id} className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm">{n.title || n.message}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDate(n.createdAt)}
+                  </p>
+                </div>
+                {!n.read && (
+                  <Badge className="bg-blue-100 text-blue-800">
+                    {t('language') === 'en' ? 'New' : 'جديد'}
+                  </Badge>
+                )}
               </div>
-              <div>{getStatusBadge(app.status)}</div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {t('language') === 'en' ? 'No notifications' : 'لا توجد إشعارات'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Applications Tabs */}
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList className="grid grid-cols-4 mb-6">
+          <TabsTrigger value="all">
+            {t('language') === 'en' ? 'All' : 'الكل'}(
+            {sortedApplications.length})
+          </TabsTrigger>
+          <TabsTrigger value="pending">
+            {t('language') === 'en' ? 'Pending' : 'قيد المراجعة'}({pendingCount}
+            )
+          </TabsTrigger>
+          <TabsTrigger value="action">
+            {t('language') === 'en' ? 'Action Required' : 'إجراء مطلوب'} (
+            {actionCount})
+          </TabsTrigger>
+          <TabsTrigger value="completed">
+            {t('language') === 'en' ? 'Completed' : 'مكتملة'} ({completedCount})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* All */}
+        <TabsContent value="all">
+          <ApplicationsList apps={applications} />
+        </TabsContent>
+
+        {/* Pending */}
+        <TabsContent value="pending">
+          <ApplicationsList
+            apps={sortedApplications.filter(
+              (a) => mapStatus(a.status) === 'pending',
+            )}
+          />
+        </TabsContent>
+
+        {/* Action Required */}
+        <TabsContent value="action">
+          <ApplicationsList
+            apps={applications.filter(
+              (a) => mapStatus(a.status) === 'action_required',
+            )}
+          />
+        </TabsContent>
+
+        {/* Completed */}
+        <TabsContent value="completed">
+          <ApplicationsList
+            apps={applications.filter((a) =>
+              ['approved', 'rejected'].includes(mapStatus(a.status)),
+            )}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
+
+  /* ========================= */
+  /* Application Card Component */
+  /* ========================= */
+  function ApplicationCard({ app }: { app: any }) {
+    const timeline = buildTimeline(app);
+    return (
+      <Card className="mb-3">
+        <CardContent className="flex justify-between items-center p-4">
+          <div>
+            <p className="font-medium">
+              {app.type} - {app.currentStage}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {formatDate(app.createdAt)}
+            </p>
+          </div>
+          <div>{getStatusBadge(app.status)}</div>
+          <Button
+            size="sm"
+            onClick={() => router.push(`/application/${app.id}`)}
+          >
+            View
+          </Button>
+          <ApplicationTimeline steps={timeline} />
+        </CardContent>
+      </Card>
+    );
+  }
+  function ApplicationsList({ apps }: { apps: any[] }) {
+    if (!apps || apps.length === 0) {
+      return (
+        <p className="text-sm text-muted-foreground text-center py-6">
+          No applications found
+        </p>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {apps.map((app) => (
+          <ApplicationCard key={app.id} app={app} />
+        ))}
+      </div>
+    );
+  }
 }

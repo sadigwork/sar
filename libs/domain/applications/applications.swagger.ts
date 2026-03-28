@@ -12,10 +12,13 @@ export class ApplicationDto {
   @ApiProperty()
   userId: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    example: 'clx123-profile-id',
+    description: 'Profile ID المرتبط بالمستخدم',
+  })
   profileId: string;
 
-  @ApiProperty({ enum: ApplicationType })
+  @ApiProperty({ enum: ApplicationType, example: 'NEW_REGISTRATION' })
   type: ApplicationType;
 
   @ApiProperty({ enum: ApplicationStatus })
@@ -29,6 +32,9 @@ export class ApplicationDto {
 }
 
 export class CreateApplicationSwaggerDto {
-  @ApiProperty({ enum: ApplicationType })
-  type: ApplicationType;
+  @ApiProperty({
+    enum: ['REGISTRATION', 'RENEWAL'],
+    example: 'REGISTRATION',
+  })
+  type: string;
 }

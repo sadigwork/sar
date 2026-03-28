@@ -1,21 +1,22 @@
 import useSWR from 'swr';
 import { useAuth } from '@/components/auth-provider';
-
-const fetcher = (url: string, token: string) =>
-  fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then((res) =>
-    res.json(),
-  );
+import { fetcher } from '@/lib/fetcher';
 
 export const useProfile = () => {
-  const { token } = useAuth();
-  const { data, error, isLoading } = useSWR(
-    token ? ['/api/profiles/me', token] : null,
+  const { token, isLoading: authLoading } = useAuth();
+
+  const { data, error, isValidating } = useSWR(
+    !authLoading && token ? ['/profiles/me', token] : null,
     fetcher,
+    {
+      revalidateOnFocus: false,
+      refreshInterval: 0,
+    },
   );
 
   return {
     profile: data,
-    isLoading,
+    isLoading: authLoading || isValidating,
     isError: error,
   };
 };

@@ -27,6 +27,7 @@ export class ProfilesService {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
       include: {
+        user: true,
         educations: true,
         experiences: true,
         documents: true,

@@ -21,17 +21,17 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  profile      Profile?
-  applications Application[]
-  reviews      ApplicationReview[]
-  documents    Document[]
-  payments     Payment[]
-  tokens       RefreshToken[]
-  activities   ActivityLog[]
-
+  profile         Profile?
+  applications    Application[]
+  reviews         ApplicationReview[]
+  documents       Document[]
+  payments        Payment[]
+  tokens          RefreshToken[]
+  activities      ActivityLog[]
+  notifications   Notification[]
   // مراجعات كمراجع
-  documentReviews DocumentReview[] @relation("UserDocumentReviews")
-  profileReviews  ProfileReview[]  @relation("UserProfileReviews")
+  documentReviews DocumentReview[]    @relation("UserDocumentReviews")
+  profileReviews  ProfileReview[]     @relation("UserProfileReviews")
 }
 
 model Profile {
@@ -232,6 +232,74 @@ model RefreshToken {
 
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+
+  title   String
+  message String
+
+  type NotificationType @default(INFO)
+  isRead Boolean          @default(false)
+
+  metadata  Json?
+  entity   String?
+  entityId String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Workflow {
+  id   String @id @default(cuid())
+  name String
+
+  applicationType ApplicationType
+
+  stages WorkflowStage[]
+
+  createdAt DateTime @default(now())
+}
+
+model WorkflowStage {
+  id         String @id @default(cuid())
+  workflowId String
+
+  name String
+  code ReviewStage
+
+  order Int
+
+  requiredRole Role
+  minApprovals Int  @default(1)
+
+  workflow        Workflow             @relation(fields: [workflowId], references: [id])
+  // العلاقات مع WorkflowTransition
+  fromTransitions WorkflowTransition[] @relation("FromStage")
+  toTransitions   WorkflowTransition[] @relation("ToStage")
+
+  createdAt DateTime @default(now())
+}
+
+model WorkflowTransition {
+  id String @id @default(cuid())
+
+  fromStageId String
+  toStageId   String?
+
+  condition ReviewDecision
+  fromStage WorkflowStage  @relation("FromStage", fields: [fromStageId], references: [id])
+  toStage   WorkflowStage? @relation("ToStage", fields: [toStageId], references: [id])
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
 }
 
 enum ProfileStatus {
