@@ -73,12 +73,12 @@ export class WorkflowService {
   // 🚀 تنفيذ review
   async processReview(params: {
     applicationId: string;
-    reviewerId: string;
+    userId: string;
     role: Role;
     decision: ReviewDecision;
     comment?: string;
   }) {
-    const { applicationId, reviewerId, role, decision, comment } = params;
+    const { applicationId, userId, role, decision, comment } = params;
 
     const application = await this.prisma.application.findUnique({
       where: { id: applicationId },
@@ -107,7 +107,7 @@ export class WorkflowService {
       await tx.applicationReview.create({
         data: {
           applicationId,
-          reviewerId,
+          reviewerId: userId,
           role,
           stage: currentStage.code,
           decision,

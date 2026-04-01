@@ -6,7 +6,7 @@ export class WorkflowActionDto {
     description: 'معرف المراجع الذي يقوم بالإجراء',
     example: 'clx123-reviewer-id',
   })
-  reviewerId: string;
+  userId: string;
 
   @ApiProperty({
     description: 'الدور الذي يقوم بالإجراء',
@@ -49,7 +49,7 @@ export class ReviewDto {
   comment: string;
 
   @ApiProperty({ example: 'reviewer-user-id' })
-  reviewerId: string;
+  userId: string;
 }
 
 export class PaymentDto {

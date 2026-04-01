@@ -39,7 +39,7 @@ export default function RegisterPage() {
   const { t } = useLanguage();
   const router = useRouter();
   const { toast } = useToast();
-  const { setUser } = useAuth(); // لتحديث المستخدم بعد التسجيل
+  const { setUser, setToken } = useAuth(); // لتحديث المستخدم بعد التسجيل
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -70,14 +70,15 @@ export default function RegisterPage() {
 
       const result = response.data;
 
-      if (!result?.user || !result?.tokens) {
+      if (!result?.data?.user || !result?.data?.tokens) {
         throw new Error('Invalid registration response');
       }
       // نحفظ الـ token وبيانات المستخدم
-      localStorage.setItem('accessToken', result.tokens.access_token);
-      localStorage.setItem('user', JSON.stringify(result.user));
+      localStorage.setItem('accessToken', result.data.tokens.accessToken);
+      localStorage.setItem('user', JSON.stringify(result.data.user));
 
-      setUser(result.user); // تحديث الـ context
+      setUser(result.data.user); // تحديث الـ context
+      setToken(result.data.tokens.accessToken); // تحديث الـ token في الـ context
       // await login(values.email, values.password); // تسجيل الدخول بعد التسجيل
 
       toast({
@@ -92,11 +93,11 @@ export default function RegisterPage() {
       });
 
       // توجيه تلقائي بناءً على الدور
-      if (result.user.role === 'Admin') {
+      if (result.data.user.role === 'Admin') {
         router.push('/admin/dashboard');
-      } else if (result.user.role === 'Reviewer') {
+      } else if (result.data.user.role === 'Reviewer') {
         router.push('/reviewer/dashboard');
-      } else if (result.user.role === 'Registrar') {
+      } else if (result.data.user.role === 'Registrar') {
         router.push('/registrar/dashboard');
       } else {
         router.push('/dashboard');

@@ -178,7 +178,7 @@ export class AuthService {
 
     console.log('[STEP 2] ✅ User FOUND');
     console.log('[DB USER]', {
-      id: user.id,
+      userId: user.id,
       email: user.email,
       password: user.password,
       role: user.role,

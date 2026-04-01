@@ -31,8 +31,8 @@ import { ExperienceForm } from '@/components/application/experience-form';
 import { DocumentsForm } from '@/components/application/documents-form';
 import { ReviewForm } from '@/components/application/review-form';
 import { ProfessionalCertificationsForm } from '@/components/application/professional-certifications-form';
-import { useProfile } from 'apps/web/src/hooks/use-profile';
-import api from 'apps/web/src/lib/api';
+import { useProfile } from '@/hooks/use-profile';
+import api from '@/lib/api';
 
 export default function NewApplicationPage() {
   const { t } = useLanguage();
@@ -42,14 +42,56 @@ export default function NewApplicationPage() {
 
   const { profile } = useProfile();
 
+  // =========================
+  // Prefill from profile
+  // =========================
+  useEffect(() => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    if (profile) {
+      setFormData((prev) => ({
+        ...prev,
+        personal: {
+          ...prev.personal,
+          fullName: profile.fullNameAr || '',
+          fullNameEn: profile.fullNameEn || '',
+          nationalId: profile.nationalId || '',
+          birthDate: profile.dateOfBirth || '',
+          address: profile.address || '',
+          city: profile.city || '',
+          country: profile.country || '',
+          postalCode: '',
+          phoneNumber: profile.phone || '',
+          email: profile.user?.email || '',
+          specialization: profile.specialization || '',
+          graduationYear: profile.graduationYear || '',
+          university: profile.university || '',
+        },
+        education: profile.educations || [],
+        experience: profile.experiences || [],
+        documents: profile.documents || [],
+        certifications: [],
+      }));
+    }
+
+    setIsLoading(false);
+  }, [user, profile]);
+
   const [isLoading, setIsLoading] = useState(true);
-  const [currentStep, setCurrentStep] = useState(0);
   const [applicationId, setApplicationId] = useState<string | null>(null);
+
+  const [currentStep, setCurrentStep] = useState(0); // Always start from step 0 for new applications
+
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     personal: {
       fullName: '',
+      fullNameEn: '',
       nationalId: '',
       birthDate: '',
       address: '',
@@ -58,6 +100,9 @@ export default function NewApplicationPage() {
       postalCode: '',
       phoneNumber: '',
       email: '',
+      specialization: '',
+      graduationYear: '',
+      university: '',
     },
     education: [],
     experience: [],
@@ -114,60 +159,57 @@ export default function NewApplicationPage() {
     },
   ];
 
-  // // Check if user is logged in
-  // useEffect(() => {
-  //   if (!user) {
-  //     router.push('/login');
-  //   } else {
-  //     // Pre-fill email from user data
-  //     setFormData((prev) => ({
-  //       ...prev,
-  //       personal: {
-  //         ...prev.personal,
-  //         fullName: user.name || '',
-  //         email: user.email || '',
-  //       },
-  //     }));
-  //     setIsLoading(false);
-  //   }
-  // }, [router, user]);
-
+  // =========================
+  // Clear localStorage for new application
+  // =========================
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
+    // Clear old application data when starting new application
+    localStorage.removeItem('applicationId');
+    localStorage.removeItem('currentStep');
+    setApplicationId(null);
+    setCurrentStep(0);
+  }, []);
 
-    if (profile) {
-      setFormData((prev) => ({
-        ...prev,
-        personal: {
-          ...prev.personal,
-          fullName: profile?.fullNameAr || '',
-          email: profile?.user?.email || '',
-          phoneNumber: profile?.phone || '',
-          address: profile?.address || '',
-        },
-      }));
-    }
-
-    setIsLoading(false);
-  }, [user, profile]);
+  // =========================
+  // Save Step index
+  // =========================
+  useEffect(() => {
+    localStorage.setItem('currentStep', String(currentStep));
+  }, [currentStep]);
 
   // =========================
   // Create Application (مرة واحدة فقط)
   // =========================
   const createApplicationIfNeeded = async () => {
-    if (applicationId || creating) return applicationId;
+    if (applicationId) return applicationId;
 
+    // Fallback to persisted application id if exists
+    const persistedId = localStorage.getItem('applicationId');
+    if (persistedId && persistedId !== 'undefined') {
+      setApplicationId(persistedId);
+      return persistedId;
+    }
+
+    // If a create is in progress, wait until finished and retry
+    if (creating) {
+      let retries = 10;
+      while (retries > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        if (applicationId) return applicationId;
+        const cached = localStorage.getItem('applicationId');
+        if (cached && cached !== 'undefined') {
+          setApplicationId(cached);
+          return cached;
+        }
+        retries -= 1;
+      }
+    }
+
+    // Try loading existing draft from backend
     try {
-      setCreating(true);
-
-      const res = await api.post(
-        '/applications',
-        {
-          type: 'certification', // تقدر تخليها dynamic
-        },
+      console.log('Checking for existing draft...');
+      const draftRes = await api.get(
+        '/applications/my-draft?type=REGISTRATION',
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -175,21 +217,100 @@ export default function NewApplicationPage() {
         },
       );
 
-      setApplicationId(res.data.id);
+      console.log('Draft response:', draftRes.data);
+
+      let draftId;
+      if (draftRes.data?.id) {
+        draftId = draftRes.data.id;
+      } else if (draftRes.data?.data?.id) {
+        draftId = draftRes.data.data.id;
+      } else if (typeof draftRes.data === 'string') {
+        draftId = draftRes.data;
+      }
+
+      if (draftId) {
+        console.log('Found existing draft, using it:', draftId);
+        setApplicationId(draftId);
+        localStorage.setItem('applicationId', draftId);
+        return draftId;
+      } else {
+        console.log('No existing draft found, will create new one');
+      }
+    } catch (err) {
+      console.warn(
+        'No existing draft found or error while loading draft:',
+        err,
+      );
+    }
+
+    try {
+      setCreating(true);
+      console.log('Creating new application...');
+
+      const res = await api.post(
+        '/applications',
+        { type: 'REGISTRATION' },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('New application created:', res.data);
+      console.log('res.data structure:', JSON.stringify(res.data, null, 2));
+
+      // Handle different response structures
+      let appId;
+      if (res.data?.id) {
+        appId = res.data.id;
+      } else if (res.data?.data?.id) {
+        appId = res.data.data.id;
+      } else if (typeof res.data === 'string') {
+        appId = res.data;
+      } else if (res.data && typeof res.data === 'object') {
+        // Try to find id in the object
+        appId = res.data.id || res.data._id || res.data.applicationId;
+      }
+
+      console.log('Extracted appId:', appId);
+
+      if (!appId) {
+        console.error(
+          'ERROR: Could not extract appId from response:',
+          res.data,
+        );
+        return null;
+      }
+
+      setApplicationId(appId);
+      localStorage.setItem('applicationId', appId); // ✅ مهم
 
       toast({
         title: 'Draft created',
         description: 'Application draft created successfully',
       });
 
-      return res.data.id;
+      return appId;
     } catch (err: any) {
+      console.error('CREATE APPLICATION ERROR:', err);
+      console.error('Full error response:', err.response);
+
+      const message =
+        typeof err?.response?.data?.message === 'string'
+          ? err.response.data.message
+          : Array.isArray(err?.response?.data?.message)
+            ? err.response.data.message.join(', ')
+            : 'Failed to create draft';
+
+      console.error('Error message:', message);
+
       toast({
         title: 'Error',
-        description: err?.response?.data?.message || 'Failed to create draft',
+        description: message,
         variant: 'destructive',
       });
-      throw err;
+      return null;
     } finally {
       setCreating(false);
     }
@@ -199,28 +320,152 @@ export default function NewApplicationPage() {
   // Save Step (🔥 المهم)
   // =========================
   const saveStep = async (stepKey: string, data: any) => {
+    if (saving) return;
+
+    if (stepKey === 'review') {
+      // review step is only UI confirmation; no server step update required
+      return { message: 'Review step does not require server save' };
+    }
+
     try {
-      const appId = await createApplicationIfNeeded();
+      setSaving(true);
 
-      await api.patch(
-        `/applications/${appId}`,
-        {
-          step: stepKey,
-          data,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
+      if (stepKey === 'personal') {
+        // Save personal info to profile
+        const profileData = {
+          fullNameAr: data.fullName,
+          fullNameEn: data.fullName, // For now, use same for both
+          nationalId: data.nationalId,
+          phone: data.phoneNumber,
+          dateOfBirth: data.birthDate,
+          address: data.address,
+          city: data.city,
+          country: data.country,
+        };
+
+        console.log('Saving profile data:', profileData);
+
+        if (!profile) {
+          console.log('Creating new profile');
+          // Create profile
+          await api.post('/profiles', profileData, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        } else {
+          console.log('Updating existing profile');
+          // Update profile
+          await api.patch('/profiles/me', profileData, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        }
+
+        toast({
+          title: 'Saved',
+          description: 'Personal information saved successfully',
+        });
+      } else {
+        // Save other steps to application
+        console.log(
+          'saveStep: Starting with applicationId state =',
+          applicationId,
+        );
+        let appId = applicationId;
+
+        if (!appId) {
+          appId = localStorage.getItem('applicationId');
+          console.log('Checked localStorage, appId =', appId);
+        }
+
+        if (!appId || appId === 'undefined') {
+          console.log('Creating application because appId is null/undefined');
+          appId = await createApplicationIfNeeded();
+          console.log('createApplicationIfNeeded returned:', appId);
+        } else {
+          console.log('Using existing appId:', appId);
+        }
+
+        if (!appId || appId === 'undefined') {
+          console.log('Still no appId, trying draft endpoint...');
+          // Try draft endpoint one more time
+          try {
+            const draftRes = await api.get(
+              '/applications/my-draft?type=REGISTRATION',
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              },
+            );
+            console.log('Draft retry response:', draftRes.data);
+            let retryId;
+            if (draftRes.data?.id) {
+              retryId = draftRes.data.id;
+            } else if (draftRes.data?.data?.id) {
+              retryId = draftRes.data.data.id;
+            } else if (typeof draftRes.data === 'string') {
+              retryId = draftRes.data;
+            }
+
+            if (retryId) {
+              appId = retryId;
+              console.log('Got appId from draft retry:', appId);
+              setApplicationId(appId);
+              localStorage.setItem('applicationId', appId);
+            }
+          } catch (err) {
+            console.error('Draft retry failed:', err);
+          }
+        }
+
+        console.log('Final appId before validation:', appId);
+        if (!appId || appId === 'undefined') {
+          console.error('ERROR: No appId found after all attempts');
+          throw new Error('Application ID is missing');
+        }
+
+        console.log('Sending to applications patch:', { step: stepKey, data });
+
+        await api.patch(
+          `/applications/${appId}`,
+          {
+            step: stepKey,
+            data,
           },
-        },
-      );
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+      }
 
-      toast({
-        title: 'Saved',
-        description: `${stepKey} saved successfully`,
-      });
+      if (stepKey !== 'personal') {
+        toast({
+          title: 'Saved',
+          description: `${stepKey} saved successfully`,
+        });
+      }
     } catch (err) {
-      console.error(err);
+      console.error('SAVE STEP ERROR', err);
+      toast({
+        title: 'Error',
+        description:
+          stepKey === 'personal'
+            ? 'Failed to save personal information. Please check all required fields.'
+            : 'Failed to save data',
+        variant: 'destructive',
+      });
+
+      // For personal info, throw error to prevent step advancement
+      if (stepKey === 'personal') {
+        throw err;
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -228,13 +473,40 @@ export default function NewApplicationPage() {
   // Navigation
   // =========================
   const handleNext = async () => {
-    const stepKey = steps[currentStep].id;
-    const data = formData[stepKey];
+    const stepKey = steps[currentStep]?.id;
+    if (!stepKey) return;
 
-    await saveStep(stepKey, data);
+    const data = (formData as any)[stepKey];
 
-    if (currentStep < steps.length - 1) {
-      setCurrentStep((prev) => prev + 1);
+    // Validate required fields for personal info
+    if (stepKey === 'personal') {
+      if (!data.fullName?.trim()) {
+        toast({
+          title: 'Validation Error',
+          description: 'Full name is required',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!data.nationalId?.trim()) {
+        toast({
+          title: 'Validation Error',
+          description: 'National ID is required',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    try {
+      await saveStep(stepKey, data);
+
+      if (currentStep < steps.length - 1) {
+        setCurrentStep((prev) => prev + 1);
+      }
+    } catch (error) {
+      // Don't advance step if save failed
+      console.error('Failed to save step:', stepKey, error);
     }
   };
 
@@ -244,19 +516,109 @@ export default function NewApplicationPage() {
     }
   };
 
+  // =========================
+  // Submit Application
+  // =========================
   const handleSubmit = async () => {
     try {
-      if (!applicationId) {
+      if (!profile) {
         toast({
           title: 'Error',
-          description: 'No application found',
+          description: 'Profile not loaded yet',
           variant: 'destructive',
         });
         return;
       }
 
+      // Handle profile status before application submit
+      if (profile.status === 'REJECTED') {
+        toast({
+          title: 'Error',
+          description:
+            'Your profile was rejected. Please update your profile before submitting application.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      let currentProfileStatus = profile.status;
+
+      if (currentProfileStatus === 'DRAFT') {
+        if (typeof profile.completion !== 'number' || profile.completion < 80) {
+          toast({
+            title: 'Error',
+            description:
+              'Your profile is incomplete. Please complete your profile (80% or more) before submitting application.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        try {
+          await api.post(
+            '/profiles/me/submit',
+            { notes: '' },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
+          currentProfileStatus = 'SUBMITTED';
+        } catch (submitError: any) {
+          const message =
+            submitError?.response?.data?.message ||
+            submitError?.message ||
+            'Failed to submit profile. Please check required fields.';
+
+          toast({
+            title: 'Error',
+            description: message,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      if (currentProfileStatus === 'DRAFT') {
+        toast({
+          title: 'Error',
+          description:
+            'Profile is still draft. Please verify your profile details and submit profile for review.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (
+        currentProfileStatus !== 'SUBMITTED' &&
+        currentProfileStatus !== 'APPROVED'
+      ) {
+        toast({
+          title: 'Error',
+          description:
+            'Cannot submit application until profile is submitted or approved.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      let appId = applicationId;
+      if (!appId || appId === 'undefined') {
+        appId = await createApplicationIfNeeded();
+        if (!appId) {
+          toast({
+            title: 'Error',
+            description: 'No application found',
+            variant: 'destructive',
+          });
+          return;
+        }
+        setApplicationId(appId);
+      }
+
       await api.post(
-        `/applications/${applicationId}/submit`,
+        `/applications/${appId}/submit`,
         {},
         {
           headers: {
@@ -264,6 +626,10 @@ export default function NewApplicationPage() {
           },
         },
       );
+
+      // remove draft when submit
+      localStorage.removeItem('applicationId'); // ✅ مهم
+      localStorage.removeItem('currentStep');
 
       toast({
         title: t('language') === 'en' ? 'Submitted' : 'تم إنشاء الطلب',
@@ -276,12 +642,18 @@ export default function NewApplicationPage() {
       router.push('/dashboard');
     } catch (error: any) {
       console.error('CREATE APPLICATION ERROR:', error);
+      const message =
+        typeof error?.response?.data?.message === 'string'
+          ? error.response.data.message
+          : Array.isArray(error?.response?.data?.message)
+            ? error.response.data.message.join(', ')
+            : t('language') === 'en'
+              ? 'Submission failed'
+              : 'فشل ارسال الطلب';
 
       toast({
         title: t('language') === 'en' ? 'Error' : 'خطأ',
-        description:
-          error?.response?.data?.message ||
-          (t('language') === 'en' ? 'Submission failed' : 'فشل ارسال الطلب'),
+        description: message,
         variant: 'destructive',
       });
     }
@@ -402,38 +774,14 @@ export default function NewApplicationPage() {
           )}
           {currentStep === 5 && <ReviewForm formData={formData} />}
         </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={currentStep === 0}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            {t('language') === 'en' ? 'Previous' : 'السابق'}
-          </Button>
-          {currentStep < steps.length - 1 ? (
-            <Button
-              onClick={handleNext}
-              className="bg-gradient-green hover:opacity-90"
-            >
-              {t('language') === 'en' ? 'Next' : 'التالي'}
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              className="bg-gradient-green hover:opacity-90"
-            >
-              {t('language') === 'en' ? 'Submit Application' : 'تقديم الطلب'}
-            </Button>
-          )}
-        </CardFooter>
+        
       </Card> */}
       <Card>
         <CardHeader>
           <CardTitle>{steps[currentStep].title}</CardTitle>
           <CardDescription>
-            Step {currentStep + 1} of {steps.length}
+            {t('language') === 'en' ? 'Step' : 'الخطوة'} {currentStep + 1}{' '}
+            {t('language') === 'en' ? 'of' : 'من'} {steps.length}
           </CardDescription>
         </CardHeader>
 
@@ -493,16 +841,18 @@ export default function NewApplicationPage() {
             disabled={currentStep === 0}
           >
             <ChevronLeft className="mr-2 h-4 w-4" />
-            Previous
+            {t('language') === 'en' ? 'Previous' : 'السابق'}
           </Button>
 
           {currentStep < steps.length - 1 ? (
             <Button onClick={handleNext}>
-              Next
+              {t('language') === 'en' ? 'Next' : 'التالي'}
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit}>Submit</Button>
+            <Button onClick={handleSubmit}>
+              {t('language') === 'en' ? 'Submit Application' : 'تقديم الطلب'}
+            </Button>
           )}
         </CardFooter>
       </Card>

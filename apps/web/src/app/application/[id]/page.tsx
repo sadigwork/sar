@@ -41,7 +41,7 @@ import { api } from '@/lib/api'; // تأكد من import api الصحيح
 const mockApplications = [
   {
     id: 'app1',
-    type: 'certification',
+    type: 'CERTIFICATION',
     level: 'Intermediate',
     specialization: 'Agricultural Engineering',
     submissionDate: '2023-11-15T10:30:00Z',

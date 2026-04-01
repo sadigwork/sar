@@ -53,15 +53,21 @@ model Profile {
   bio    String?
 
   status ProfileStatus @default(DRAFT)
+  reviewNotes   String?
+  specialization String?  // ← Specialization
+  graduationYear Int?     // ← Graduation Year
+  university    String?   // ← University
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  submittedAt   DateTime?
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   educations   Education[]
   experiences  Experience[]
   documents    Document[]
   applications Application[]
+  certifications Certification[]
 
   // مراجعات للبروفايل
   reviews ProfileReview[] @relation("ProfileReviews")
@@ -121,6 +127,7 @@ model Application {
   type         ApplicationType
   status       ApplicationStatus @default(DRAFT)
   currentStage ReviewStage?      @default(REGISTRAR_REVIEW)
+  progress     Int               @default(0)
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -181,7 +188,9 @@ model Education {
   field       String
   institution String
   country     String
-  year        Int
+  startYear   Int?
+  endYear     Int?
+  inProgress  Boolean @default(false)
 
   createdAt DateTime @default(now())
 
@@ -200,6 +209,22 @@ model Experience {
 
   years  Int
   months Int
+
+  createdAt DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id])
+}
+
+model Certification {
+  id        String @id @default(cuid())
+  profileId String
+
+  nameEn        String
+  nameAr        String
+  descriptionEn String
+  descriptionAr String
+  status        String @default("pending")
+  appliedDate   DateTime @default(now())
 
   createdAt DateTime @default(now())
 

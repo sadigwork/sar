@@ -26,6 +26,7 @@ import { NotificationsModule } from '../../../../libs/domain/notifications/notif
     DocumentsModule,
     WorkflowModule,
     NotificationsModule,
+
     ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot(),
   ],

@@ -14,8 +14,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { DocumentsService } from './documents.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { multerConfig } from '../../infrastructure/upload/multer.config';
+import { JwtAuthGuard } from '../auth/src/lib/guards/jwt-auth.guard';
+import { UseGuards } from '@nestjs/common';
 
 @Controller('documents')
+@UseGuards(JwtAuthGuard)
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
@@ -26,17 +29,17 @@ export class DocumentsController {
     @Body() dto: UploadDocumentDto,
     @Req() req,
   ) {
-    return this.documentsService.uploadDocument(req.user.id, file, dto);
+    return this.documentsService.uploadDocument(req.user.sub, file, dto);
   }
 
   @Get('me')
   getMyDocuments(@Req() req) {
-    return this.documentsService.getMyDocuments(req.user.id);
+    return this.documentsService.getMyDocuments(req.user.sub);
   }
 
   @Delete(':id')
   delete(@Param('id') id: string, @Req() req) {
-    return this.documentsService.deleteDocument(id, req.user.id);
+    return this.documentsService.deleteDocument(id, req.user.sub);
   }
 
   // Admin endpoint

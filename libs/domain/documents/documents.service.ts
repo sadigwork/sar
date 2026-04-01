@@ -63,8 +63,8 @@ export class DocumentsService {
     return this.prisma.document.create({
       data: {
         userId,
-        profileId: dto.profileId,
-        applicationId: dto.applicationId,
+        profileId: dto.profileId || undefined,
+        applicationId: dto.applicationId || undefined,
         type: dto.type,
         fileUrl: `/uploads/documents/${file.filename}`,
         status: 'PENDING',

@@ -21,7 +21,7 @@ export class NotificationsController {
   @Get()
   @UseGuards(JwtAuthGuard)
   getMy(@Req() req) {
-    return this.notificationsService.findMyNotifications(req.user.id);
+    return this.notificationsService.findMyNotifications(req.user.sub);
   }
 
   @Patch(':id/read')
@@ -32,7 +32,7 @@ export class NotificationsController {
   @Patch('read-all')
   markAll(@Req() req) {
     // تعليم جميع إشعارات المستخدم الحالي كمقروءة
-    return this.notificationsService.markAll(req.user.id);
+    return this.notificationsService.markAll(req.user.sub);
   }
 
   @Post()

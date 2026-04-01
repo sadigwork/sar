@@ -45,9 +45,8 @@ export class ProfilesController {
   @Get('me')
   @ApiOperation({ summary: 'Get my profile' })
   @ApiResponse({ status: 200, type: ProfileDto })
-  async getMyProfile(@CurrentUser('sub') userId: string) {
-    // const userId = req.user.sub; // هل الـ JWT تم التحقق منه؟
-    return this.profilesService.getMyProfile(userId);
+  async getMyProfile(@CurrentUser() user) {
+    return this.profilesService.getMyProfile(user.sub);
   }
 
   @Post()

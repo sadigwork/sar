@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Req,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/src/lib/guards/jwt-auth.guard';
@@ -15,7 +16,7 @@ import { StageGuard } from './guards/stage.guard';
 import { RoleGuard } from './guards/role.guard';
 import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
-import { UpdateApplicationDto } from './dto/update-application.dto';
+import { ApplicationResponseDto } from './dto/application-response.dto';
 import { PaymentMethod } from '../payments/index';
 import {
   ApiTags,
@@ -23,12 +24,14 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import {
   ApplicationDto,
   CreateApplicationSwaggerDto,
 } from './applications.swagger';
 import { ReviewDto, PaymentDto } from '../workflow/workflow.swagger';
+import { BadRequestException } from '@nestjs/common';
 
 @ApiTags('🧾 Applications Workflow')
 @ApiBearerAuth()
@@ -37,6 +40,9 @@ import { ReviewDto, PaymentDto } from '../workflow/workflow.swagger';
 export class ApplicationsController {
   constructor(private readonly appService: ApplicationsService) {}
 
+  // =========================
+  // GET ALL
+  // =========================
   @Get('me')
   @ApiOperation({ summary: 'Get my applications' })
   @ApiResponse({ status: 200, type: [ApplicationDto] })
@@ -44,8 +50,53 @@ export class ApplicationsController {
     return this.appService.getMyApplications(req.user.sub);
   }
 
-  @Get(':id')
+  @Get('my-draft')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Get user draft applications',
+    description:
+      'Retrieves all draft applications for the authenticated user, optionally filtered by application type',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['REGISTRATION', 'RENEWAL', 'UPGRADE'],
+    description: 'Filter applications by type (الحالة: DRAFT)',
+    example: 'REGISTRATION',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns list of draft applications successfully',
+    type: [ApplicationResponseDto], // استخدام DTO مناسب
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - User not authenticated',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User does not have permission',
+  })
+  async getMyDraft(@Req() req, @Query('type') type: string) {
+    console.log(req.user);
+    const userId = req.user.sub;
+
+    const draft = await this.appService.getMyDraft(userId, type);
+
+    if (!draft) {
+      return {
+        success: true,
+        data: null,
+      };
+    }
+
+    return draft;
+  }
+
+  // =========================
+  // GET ONE
+  // =========================
+  @Get(':id')
   @ApiOperation({ summary: 'Get application by ID' })
   @ApiResponse({ status: 200, type: ApplicationDto })
   async getApplicationById(@Param('id') id: string, @Req() req) {
@@ -61,31 +112,35 @@ export class ApplicationsController {
   @ApiResponse({ status: 201, type: ApplicationDto })
   async create(@Req() req, @Body() dto: CreateApplicationDto) {
     // تحقق من اكتمال الملف الشخصي قبل إنشاء الطلب
-    const profile = await this.appService.getUserProfile(req.user.id);
+    const profile = await this.appService.getUserProfile(req.user.sub);
     if (!profile) {
       throw new BadRequestException('Profile not found');
     }
 
-    // if (profile.status !== 'APPROVED') {
-    //   throw new BadRequestException(
-    //     'Cannot create application before profile approval',
-    //   );
-    // }
-    return this.appService.createApplication(req.user.id, {
+    return this.appService.createApplication(req.user.sub, {
       ...dto,
       profileId: profile.id,
     });
   }
 
+  // =========================
+  // UPDATE (SAVE STEP)
+  // =========================
   @Patch(':id')
   async update(
     @Req() req,
     @Param('id') id: string,
-    @Body() dto: { step: string; data: UpdateApplicationDto },
+    @Body() dto: { step: string; data: any },
   ) {
+    console.log('USER FROM REQ:', req.user);
+    console.log('PARAM ID:', id);
+    console.log('BODY:', dto);
     return this.appService.updateApplication(req.user.sub, id, dto);
   }
 
+  // =========================
+  // SUBMIT
+  // =========================
   @ApiOperation({
     summary: 'Submit Application',
     description: `
@@ -97,7 +152,7 @@ export class ApplicationsController {
   })
   @Post(':id/submit')
   async submit(@Req() req, @Param('id') id: string) {
-    return this.appService.submitApplication(req.user.id, id);
+    return this.appService.submitApplication(req.user.sub, id);
   }
 
   // الإدارة والمراجعة
@@ -123,13 +178,16 @@ export class ApplicationsController {
   reviewApplication(@Param('id') id: string, @Body() body: any) {
     return this.appService.reviewApplication(
       id,
-      body.reviewerId,
+      body.userId,
       body.decision,
       body.comment,
     );
   }
 
   // ===== Payments =====
+  // =========================
+  // PAY
+  // =========================
 
   @Post(':id/pay')
   @ApiOperation({
@@ -148,9 +206,12 @@ export class ApplicationsController {
     @Body('amount') amount: number,
     @Body('method') method: PaymentMethod,
   ) {
-    return this.appService.submitPayment(id, req.user.id, amount, method);
+    return this.appService.submitPayment(id, req.user.sub, amount, method);
   }
 
+  // =========================
+  // VERIFY PAYMENT
+  // =========================
   @Patch('payments/:id/verify')
   @ApiOperation({
     summary: 'Verify Payment',
@@ -174,7 +235,7 @@ export class ApplicationsController {
     @Param('id') paymentId: string,
     @Body('approve') approve: boolean,
   ) {
-    return this.appService.verifyPayment(paymentId, 'SYSTEM', approve);
+    return this.appService.verifyPayment(paymentId, approve);
   }
 
   @Post(':id/action')

@@ -1,9 +1,15 @@
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, resolve } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+
+const UPLOAD_DIR = resolve(process.cwd(), 'uploads', 'documents');
+if (!existsSync(UPLOAD_DIR)) {
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 export const multerConfig = {
   storage: diskStorage({
-    destination: './uploads/documents',
+    destination: UPLOAD_DIR,
     filename: (req, file, cb) => {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9);
       cb(null, `${uniqueName}${extname(file.originalname)}`);
