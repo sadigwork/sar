@@ -23,58 +23,24 @@ export class ApplicationsService {
     private readonly workflowService: WorkflowService,
   ) {}
 
-  async getApplicationById(id: string, userId: string) {
-    const app = await this.prisma.application.findFirst({
+  // =========================
+  // GET OR CREATE DRAFT
+  // =========================
+  async getOrCreateDraft(userId: string) {
+    let draft = await this.prisma.application.findFirst({
       where: {
-        id,
-        userId, // 🔥 مهم للأمان
+        userId,
+        status: ApplicationStatus.DRAFT,
       },
-      include: {
-        profile: true,
-        documents: true,
-        reviews: true,
-      },
-      orderBy: { createdAt: 'desc' },
     });
 
-    if (!app) {
-      throw new NotFoundException('Application not found');
-    }
+    if (draft) return draft;
 
-    return {
-      success: true,
-      data: app,
-    };
-  }
-
-  // =========================
-  // GET MY APPLICATIONS
-  // =========================
-  async getMyApplications(userId: string) {
-    const applications = this.prisma.application.findMany({
-      where: { userId },
-      include: {
-        profile: {
-          select: {
-            fullNameAr: true,
-            fullNameEn: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return applications;
-  }
-
-  // =========================
-  // CREATE (Draft)
-  // =========================
-  async createApplication(userId: string, dto: CreateApplicationDto) {
+    // ✅ ensure profile exists
     let profile = await this.prisma.profile.findUnique({
       where: { userId },
     });
 
-    // 👇 الحل هنا
     if (!profile) {
       profile = await this.prisma.profile.create({
         data: {
@@ -84,41 +50,30 @@ export class ApplicationsService {
       });
     }
 
-    // منع تكرار Draft
-    const existingDraft = await this.prisma.application.findFirst({
-      where: {
-        userId,
-        status: ApplicationStatus.DRAFT,
-        type: dto.type,
-      },
-    });
-
-    if (existingDraft) return existingDraft;
-
     return this.prisma.application.create({
       data: {
         userId,
         profileId: profile.id,
-        type: dto.type,
         status: ApplicationStatus.DRAFT,
+        currentStep: 'personal',
+        progress: 0,
       },
     });
   }
 
-  async getMyDraft(userId: string, type: string) {
-    const apps = await this.prisma.application.findMany({
-      where: {
-        userId,
-      },
-    });
-
-    console.log('ALL APPS FOR USER:', apps);
-
-    return this.prisma.application.findFirst({
-      where: {
-        userId,
-        type: type as ApplicationType,
-        status: ApplicationStatus.DRAFT, // ✅ يجب البحث عن DRAFT فقط
+  // =========================
+  // GET MY APPLICATIONS
+  // =========================
+  async getMyApplications(userId: string) {
+    return this.prisma.application.findMany({
+      where: { userId },
+      include: {
+        profile: {
+          select: {
+            fullNameAr: true,
+            fullNameEn: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -188,7 +143,28 @@ export class ApplicationsService {
       switch (dto.step) {
         case 'personal':
           if (!dto.data || typeof dto.data !== 'object') {
-            throw new BadRequestException('Personal data is required');
+            throw new BadRequestException(
+              'Personal data is required and must be an object',
+            );
+          }
+
+          // Validate required fields
+          const requiredPersonalFields = [
+            'fullName',
+            'fullNameEn',
+            'nationalId',
+            'specialization',
+            'university',
+          ];
+          const missingPersonalFields = requiredPersonalFields.filter(
+            (field) =>
+              !dto.data[field] || String(dto.data[field]).trim() === '',
+          );
+
+          if (missingPersonalFields.length > 0) {
+            throw new BadRequestException(
+              `Missing required personal fields: ${missingPersonalFields.join(', ')}`,
+            );
           }
 
           await this.prisma.profile.update({
@@ -197,7 +173,7 @@ export class ApplicationsService {
               fullNameAr: dto.data.fullName,
               fullNameEn: dto.data.fullNameEn,
               nationalId: dto.data.nationalId,
-              phone: dto.data.phoneNumber,
+              phone: dto.data.phoneNumber || dto.data.phone,
               address: dto.data.address,
               specialization: dto.data.specialization,
               graduationYear: dto.data.graduationYear
@@ -212,8 +188,24 @@ export class ApplicationsService {
           if (!Array.isArray(dto.data)) {
             throw new BadRequestException('Education data must be an array');
           }
+
+          // Allow empty education array (user might not have education yet)
           await this.prisma.education.deleteMany({ where: { profileId } });
           if (dto.data.length > 0) {
+            // Validate each education entry
+            for (const edu of dto.data) {
+              if (
+                !edu.degree ||
+                !edu.field ||
+                !edu.institution ||
+                !edu.country
+              ) {
+                throw new BadRequestException(
+                  'Each education entry must include degree, field, institution, and country',
+                );
+              }
+            }
+
             await this.prisma.education.createMany({
               data: dto.data.map((e) => ({
                 degree: e.degree,
@@ -233,12 +225,53 @@ export class ApplicationsService {
           if (!Array.isArray(dto.data)) {
             throw new BadRequestException('Experience data must be an array');
           }
+
+          // Allow empty experience array
           await this.prisma.experience.deleteMany({ where: { profileId } });
           if (dto.data.length > 0) {
+            // Validate experience data
+            for (const e of dto.data) {
+              if (!e.company || !e.position || !e.startDate) {
+                throw new BadRequestException(
+                  'Company, position, and start date are required for each experience entry',
+                );
+              }
+              if (!e.currentlyWorking && !e.endDate) {
+                throw new BadRequestException(
+                  'End date is required if not currently working',
+                );
+              }
+            }
+
             await this.prisma.experience.createMany({
               data: dto.data.map((e) => {
-                const startDate = new Date(e.startDate);
-                const endDate = e.endDate ? new Date(e.endDate) : null;
+                // Handle month format dates (yyyy-MM) by adding day if needed
+                let startDateStr = e.startDate;
+                if (startDateStr && startDateStr.length === 7) {
+                  // yyyy-MM format
+                  startDateStr += '-01'; // Add first day of month
+                }
+
+                let endDateStr = e.endDate;
+                if (endDateStr && endDateStr.length === 7) {
+                  // yyyy-MM format
+                  endDateStr += '-01'; // Add first day of month
+                }
+
+                const startDate = new Date(startDateStr);
+                const endDate = endDateStr ? new Date(endDateStr) : null;
+
+                if (isNaN(startDate.getTime())) {
+                  throw new BadRequestException(
+                    `Invalid start date: ${e.startDate}`,
+                  );
+                }
+                if (endDate && isNaN(endDate.getTime())) {
+                  throw new BadRequestException(
+                    `Invalid end date: ${e.endDate}`,
+                  );
+                }
+
                 const isCurrent = e.currentlyWorking || false;
                 const years = endDate
                   ? Math.floor(
@@ -273,17 +306,18 @@ export class ApplicationsService {
             throw new BadRequestException('Documents data must be an array');
           }
 
-          const invalidDoc = dto.data.find(
-            (d) => !d.type || !(d.file_url || d.fileUrl),
-          );
-          if (invalidDoc) {
-            throw new BadRequestException(
-              'Each document must include type and fileUrl/file_url',
-            );
-          }
-
+          // Allow empty documents array
           await this.prisma.document.deleteMany({ where: { applicationId } });
           if (dto.data.length > 0) {
+            const invalidDoc = dto.data.find(
+              (d) => !d.type || !(d.file_url || d.fileUrl),
+            );
+            if (invalidDoc) {
+              throw new BadRequestException(
+                'Each document must include type and fileUrl/file_url',
+              );
+            }
+
             await this.prisma.document.createMany({
               data: dto.data.map((d) => {
                 const normalizedStatus =
@@ -317,15 +351,11 @@ export class ApplicationsService {
             );
           }
 
+          // Allow empty certifications array
           const validCerts = dto.data.filter(
             (c) =>
               c?.nameEn && c?.nameAr && c?.descriptionEn && c?.descriptionAr,
           );
-
-          if (dto.data.length > 0 && validCerts.length === 0) {
-            // if user attempts to save with invalid certifications, we skip but don't crash
-            break;
-          }
 
           await this.prisma.certification.deleteMany({ where: { profileId } });
           if (validCerts.length > 0) {
@@ -347,7 +377,9 @@ export class ApplicationsService {
           break;
 
         default:
-          throw new BadRequestException('Invalid step');
+          throw new BadRequestException(
+            `Invalid step: ${dto.step}. Valid steps are: personal, education, experience, documents, certifications`,
+          );
       }
 
       profile = await this.prisma.profile.findUnique({
@@ -377,7 +409,9 @@ export class ApplicationsService {
       console.error('ERROR IN updateApplication:', {
         applicationId,
         step: dto.step,
-        error,
+        error: error.message,
+        stack: error.stack,
+        data: JSON.stringify(dto.data, null, 2),
       });
 
       if (
@@ -386,7 +420,9 @@ export class ApplicationsService {
       ) {
         throw error;
       }
-      throw new BadRequestException('Could not save application step');
+      throw new BadRequestException(
+        `Could not save application step: ${error.message}`,
+      );
     }
   }
 
@@ -461,13 +497,14 @@ export class ApplicationsService {
 
     if (completion < 80) {
       throw new ForbiddenException(
-        `Cannot submit: Profile completion is ${completion}%. Minimum 80% required.`,
+        `Cannot submit: Profile completion is ${completion}%. Minimum 80% required. Please complete your personal information, education, experience, and documents.`,
       );
     }
 
+    // Check profile status
     if (app.profile.status === ProfileStatus.DRAFT) {
       throw new ForbiddenException(
-        'Cannot submit application until profile is submitted for review',
+        'Cannot submit application until profile is submitted for review. Please submit your profile first.',
       );
     }
 
@@ -482,7 +519,7 @@ export class ApplicationsService {
       app.profile.status !== ProfileStatus.APPROVED
     ) {
       throw new ForbiddenException(
-        `Cannot submit application with profile status ${app.profile.status}`,
+        `Cannot submit application with profile status ${app.profile.status}. Profile must be submitted or approved first.`,
       );
     }
 

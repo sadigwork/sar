@@ -74,6 +74,7 @@ export class ProfilesService {
   // =========================
 
   async update(userId: string, dto: UpdateProfileDto) {
+    console.log('Updating profile for userId:', userId, 'with dto:', dto);
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
     });
@@ -82,21 +83,17 @@ export class ProfilesService {
       throw new NotFoundException('Profile not found');
     }
 
+    console.log('Current profile status:', profile.status);
+
     if (
       profile.status !== ProfileStatus.DRAFT &&
-      profile.status !== ProfileStatus.REJECTED
+      profile.status !== ProfileStatus.REJECTED &&
+      profile.status !== ProfileStatus.SUBMITTED
     ) {
       throw new BadRequestException(
         `Cannot update profile in ${profile.status} status`,
       );
     }
-
-    const requiredFields = ['fullNameAr', 'fullNameEn', 'nationalId'];
-    const missingFields = requiredFields.filter((f) => !profile[f]);
-    if (missingFields.length)
-      throw new BadRequestException(
-        `Missing required fields: ${missingFields.join(', ')}`,
-      );
 
     return this.prisma.profile.update({
       where: { userId },

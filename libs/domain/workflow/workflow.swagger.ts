@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ReviewDecision, Role } from '@prisma/client';
+import { ReviewDecision } from '@prisma/client';
+import { Role } from '../users/index';
 
 export class WorkflowActionDto {
   @ApiProperty({

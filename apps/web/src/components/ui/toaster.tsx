@@ -16,12 +16,19 @@ export function Toaster() {
   return (
     <ToastProvider>
       {toasts.map(function ({ id, title, description, action, ...props }) {
+        const normalizedTitle =
+          title && typeof title === 'object' ? JSON.stringify(title) : title;
+        const normalizedDescription =
+          description && typeof description === 'object'
+            ? JSON.stringify(description)
+            : description;
+
         return (
           <Toast key={id} {...props}>
             <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
+              {normalizedTitle && <ToastTitle>{normalizedTitle}</ToastTitle>}
+              {normalizedDescription && (
+                <ToastDescription>{normalizedDescription}</ToastDescription>
               )}
             </div>
             {action}

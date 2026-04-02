@@ -93,6 +93,11 @@ export class ApplicationsController {
     return draft;
   }
 
+  @Post('draft')
+  async getOrCreateDraft(@Req() req) {
+    return this.appService.getOrCreateDraft(req.user.sub);
+  }
+
   // =========================
   // GET ONE
   // =========================
@@ -136,6 +141,21 @@ export class ApplicationsController {
     console.log('PARAM ID:', id);
     console.log('BODY:', dto);
     return this.appService.updateApplication(req.user.sub, id, dto);
+  }
+
+  // =========================
+  // STEP UPDATE
+  // =========================
+  @Patch(':id/step')
+  async updateStep(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: { step: string; data: any },
+  ) {
+    console.log('USER FROM REQ:', req.user);
+    console.log('STEP:', step);
+    console.log('BODY:', dto);
+    return this.appService.updateStep(req.user.sub, id, dto);
   }
 
   // =========================

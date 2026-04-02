@@ -17,7 +17,11 @@
       "options": {
         "buildTarget": "web:build",
         "dev": true,
-        "port": 3001
+        "port": 3001,
+        "turbo": false,
+        "env": {
+          "NEXT_DISABLE_TURBOPACK": "1"
+        }
       },
       "configurations": {
         "development": {

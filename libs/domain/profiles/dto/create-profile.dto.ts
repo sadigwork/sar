@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsNumber } from 'class-validator';
 import { ProfileExample } from '../../../common/swagger/examples';
 
 export class CreateProfileDto {
@@ -49,4 +49,16 @@ export class CreateProfileDto {
   @IsOptional()
   @IsString()
   bio?: string;
+
+  @ApiProperty({ example: ProfileExample.specialization })
+  @IsString()
+  specialization: string;
+
+  @ApiProperty({ example: ProfileExample.graduationYear })
+  @IsNumber()
+  graduationYear: number;
+
+  @ApiProperty({ example: ProfileExample.university })
+  @IsString()
+  university: string;
 }

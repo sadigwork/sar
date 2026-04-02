@@ -1,6 +1,7 @@
 'use client';
 
-import type React from 'react';
+// import type React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/components/language-provider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,10 +31,16 @@ interface PersonalInfoFormProps {
     university: string;
   };
   updateData: (data: any) => void;
+  onSubmit?: () => void;
 }
 
-export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
+export function PersonalInfoForm({
+  data,
+  updateData,
+  onSubmit,
+}: PersonalInfoFormProps) {
   const { t } = useLanguage();
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -42,6 +49,10 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
       ...data,
       [e.target.name]: e.target.value,
     });
+    // إزالة الخطأ عند التغيير
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: '' });
+    }
   };
 
   const handleSelectChange = (name: string, value: string) => {
@@ -49,14 +60,64 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
       ...data,
       [name]: value,
     });
+    // إزالة الخطأ عند التغيير
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: '' });
+    }
+  };
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!data.fullName.trim())
+      newErrors.fullName =
+        t('language') === 'en'
+          ? 'Full Name (Arabic) is required'
+          : 'الاسم الكامل (عربي) مطلوب';
+    if (!data.fullNameEn.trim())
+      newErrors.fullNameEn =
+        t('language') === 'en'
+          ? 'Full Name (English) is required'
+          : 'الاسم الكامل (إنجليزي) مطلوب';
+    if (!data.nationalId.trim())
+      newErrors.nationalId =
+        t('language') === 'en'
+          ? 'National ID is required'
+          : 'رقم الهوية الوطنية مطلوب';
+    if (!data.specialization.trim())
+      newErrors.specialization =
+        t('language') === 'en' ? 'Specialization is required' : 'التخصص مطلوب';
+
+    const graduationYearValue =
+      data.graduationYear !== undefined && data.graduationYear !== null
+        ? String(data.graduationYear).trim()
+        : '';
+    if (!graduationYearValue)
+      newErrors.graduationYear =
+        t('language') === 'en'
+          ? 'Graduation Year is required'
+          : 'سنة التخرج مطلوبة';
+    if (!data.university.trim())
+      newErrors.university =
+        t('language') === 'en' ? 'University is required' : 'الجامعة مطلوبة';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validate() && onSubmit) {
+      onSubmit(); // استدعاء الإرسال إذا كان صحيحاً
+    }
   };
 
   return (
-    <div className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="fullName">
-            {t('language') === 'en' ? 'Full Name (Arabic)' : 'الاسم الكامل (عربي)'}
+            {t('language') === 'en'
+              ? 'Full Name (Arabic)'
+              : 'الاسم الكامل (عربي)'}
           </Label>
           <Input
             id="fullName"
@@ -73,7 +134,9 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="fullNameEn">
-            {t('language') === 'en' ? 'Full Name (English)' : 'الاسم الكامل (إنجليزي)'}
+            {t('language') === 'en'
+              ? 'Full Name (English)'
+              : 'الاسم الكامل (إنجليزي)'}
           </Label>
           <Input
             id="fullNameEn"
@@ -87,25 +150,30 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
             }
             required
           />
+          {errors.fullNameEn && (
+            <p className="text-red-500 text-sm">{errors.fullNameEn}</p>
+          )}
         </div>
       </div>
-        <div className="space-y-2">
-          <Label htmlFor="nationalId">
-            {t('language') === 'en' ? 'National ID' : 'رقم الهوية الوطنية'}
-          </Label>
-          <Input
-            id="nationalId"
-            name="nationalId"
-            value={data?.nationalId ?? ''}
-            onChange={handleChange}
-            placeholder={
-              t('language') === 'en'
-                ? 'Enter your national ID'
-                : 'أدخل رقم الهوية الوطنية'
-            }
-            required
-          />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="nationalId">
+          {t('language') === 'en' ? 'National ID' : 'رقم الهوية الوطنية'}
+        </Label>
+        <Input
+          id="nationalId"
+          name="nationalId"
+          value={data?.nationalId ?? ''}
+          onChange={handleChange}
+          placeholder={
+            t('language') === 'en'
+              ? 'Enter your national ID'
+              : 'أدخل رقم الهوية الوطنية'
+          }
+          required
+        />
+        {errors.nationalId && (
+          <p className="text-red-500 text-sm">{errors.nationalId}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -174,6 +242,9 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
             }
             required
           />
+          {errors.specialization && (
+            <p className="text-red-500 text-sm">{errors.specialization}</p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="graduationYear">
@@ -192,6 +263,9 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
             }
             required
           />
+          {errors.graduationYear && (
+            <p className="text-red-500 text-sm">{errors.graduationYear}</p>
+          )}
         </div>
       </div>
 
@@ -205,12 +279,13 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
           value={data?.university ?? ''}
           onChange={handleChange}
           placeholder={
-            t('language') === 'en'
-              ? 'Enter your university'
-              : 'أدخل جامعك'
+            t('language') === 'en' ? 'Enter your university' : 'أدخل جامعك'
           }
           required
         />
+        {errors.university && (
+          <p className="text-red-500 text-sm">{errors.university}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -244,6 +319,9 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
               />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="sudan">
+                {t('language') === 'en' ? 'Sudan' : 'السودان'}
+              </SelectItem>
               <SelectItem value="saudi_arabia">
                 {t('language') === 'en'
                   ? 'Saudi Arabia'
@@ -292,6 +370,6 @@ export function PersonalInfoForm({ data, updateData }: PersonalInfoFormProps) {
           />
         </div>
       </div>
-    </div>
+    </form>
   );
 }

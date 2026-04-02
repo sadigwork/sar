@@ -61,6 +61,7 @@ export class ProfilesController {
   @ApiOperation({ summary: 'Update my profile' })
   @ApiResponse({ status: 200, type: ProfileDto })
   update(@Req() req, @Body() dto: UpdateProfileDto) {
+    console.log('Update profile DTO:', dto);
     if (dto.dateOfBirth) {
       dto.dateOfBirth = new Date(dto.dateOfBirth) as any;
     }

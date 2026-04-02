@@ -78,7 +78,14 @@
       "dependsOn": ["^build"]
     }
   },
+  "pluginsConfig": {
+    "@nx/js": {
+      "analyzeLockfile": false,
+      "analyzeSourceFiles": false
+    }
+  },
   "scripts": {
     "db:reset": "ts-node tools/scripts/db-reset.ts"
-  }
+  },
+  "analytics": true
 }
