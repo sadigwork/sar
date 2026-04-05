@@ -1,15 +1,8 @@
 import api from '@/lib//api';
 
 const API_URL = 'http://localhost:3000/api';
-export const fetcher = async ([url, token]: [string, string]) => {
-  if (!token) throw new Error('Token not available');
-  console.log('FETCH:', url);
-  console.log('TOKEN:', token);
-
-  const headers = {
-    Authorization: `Bearer ${token}`,
-  };
-  console.log('🔥 HEADERS:', headers);
+export const fetcher = async (url: string) => {
+  console.log('🚀 Fetching URL:', url);
 
   const res = await api.get(url);
 

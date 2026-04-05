@@ -12,7 +12,7 @@ export interface Application {
   status: string;
   currentStage: string | null;
   createdAt: string;
-  submitted: string | null;
+  submittedAt: string | null;
   profile?: {
     fullNameAr: string;
     fullNameEn: string;
@@ -36,9 +36,10 @@ export interface Application {
 
 export const useApplication = (id: string | null) => {
   const { token, isLoading: authLoading } = useAuth();
+  const shouldFetch = !authLoading && token && id;
 
   const { data, error, isValidating, mutate } = useSWR(
-    !authLoading && token && id ? [`/applications/${id}`, token] : null,
+    shouldFetch ? [`/applications/${id}`, token] : null,
     fetcher,
     {
       revalidateOnFocus: false,
@@ -46,11 +47,18 @@ export const useApplication = (id: string | null) => {
     },
   );
 
-  const application: Application | null = data
+  const raw = data?.data || data;
+
+  const application: Application | null = raw
     ? {
-        ...data.data,
-        status: mapStatus(data.status),
-        type: mapType(data.type),
+        type: mapType(raw.type),
+        status: mapStatus(raw.status),
+        currentStage: raw.currentStage || null,
+        createdAt: raw.createdAt,
+        submittedAt: raw.submittedAt || null,
+        profile: raw.profile,
+        progress: raw.progress,
+        nextStep: raw.nextStep,
       }
     : null;
 

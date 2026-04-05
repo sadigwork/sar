@@ -1,3 +1,505 @@
+// import {
+//   Injectable,
+//   NotFoundException,
+//   BadRequestException,
+//   ForbiddenException,
+// } from '@nestjs/common';
+// import { PrismaService } from '../../infrastructure/prisma/src/lib/prisma.service';
+// import { CreateApplicationDto } from './dto/create-application.dto';
+// import { WorkflowService } from '../workflow/index';
+// import { PaymentStatus, PaymentMethod } from '../payments/index';
+// import {
+//   ApplicationStatus,
+//   ProfileStatus,
+//   ApplicationType,
+// } from '@prisma/client';
+// import { getNextState } from '../workflow/application-workflow';
+// import { buildNotification } from '../workflow/notification-factory';
+
+// @Injectable()
+// export class ApplicationsService {
+//   constructor(
+//     private readonly prisma: PrismaService,
+//     private readonly workflowService: WorkflowService,
+//   ) {}
+
+//   // =========================
+//   // HELPERS
+//   // =========================
+
+//   private async getOwnedApplication(userId: string, applicationId: string) {
+//     const app = await this.prisma.application.findUnique({
+//       where: { id: applicationId },
+//       include: { profile: true },
+//     });
+
+//     if (!app || app.userId !== userId) {
+//       throw new NotFoundException('Application not found');
+//     }
+
+//     return app;
+//   }
+
+//   private async getProfileOrFail(profileId: string) {
+//     const profile = await this.prisma.profile.findUnique({
+//       where: { id: profileId },
+//       include: {
+//         educations: true,
+//         experiences: true,
+//         documents: true,
+//       },
+//     });
+
+//     if (!profile) {
+//       throw new NotFoundException('Profile not found');
+//     }
+
+//     return profile;
+//   }
+
+//   private calculateProfileCompletion(profile: any): number {
+//     if (!profile) return 0;
+
+//     let score = 0;
+
+//     const personalFields = [
+//       'fullNameAr',
+//       'fullNameEn',
+//       'nationalId',
+//       'specialization',
+//       'graduationYear',
+//       'university',
+//     ];
+
+//     const filled = personalFields.filter((f) => profile[f]);
+//     score += (filled.length / personalFields.length) * 40;
+
+//     if (profile.educations?.length) score += 20;
+//     if (profile.experiences?.length) score += 20;
+//     if (profile.documents?.length) score += 20;
+
+//     return Math.round(score);
+//   }
+
+//   // =========================
+//   // GET OR CREATE DRAFT
+//   // =========================
+//   async getOrCreateDraft(userId: string) {
+//     let draft = await this.prisma.application.findFirst({
+//       where: {
+//         userId,
+//         status: ApplicationStatus.DRAFT,
+//       },
+//     });
+
+//     if (draft) return draft;
+
+//     // ✅ ensure profile exists
+//     let profile = await this.prisma.profile.findUnique({
+//       where: { userId },
+//     });
+
+//     if (!profile) {
+//       profile = await this.prisma.profile.create({
+//         data: {
+//           userId,
+//           status: ProfileStatus.DRAFT,
+//         },
+//       });
+//     }
+
+//     return this.prisma.application.create({
+//       data: {
+//         userId,
+//         profileId: profile.id,
+//         status: ApplicationStatus.DRAFT,
+//         currentStep: 'personal',
+//         progress: 0,
+//       },
+//     });
+//   }
+
+//   // =========================
+//   // GET MY APPLICATIONS
+//   // =========================
+//   async getMyApplications(userId: string) {
+//     return this.prisma.application.findMany({
+//       where: { userId },
+//       include: {
+//         profile: {
+//           select: {
+//             fullNameAr: true,
+//             fullNameEn: true,
+//           },
+//         },
+//       },
+//       orderBy: { createdAt: 'desc' },
+//     });
+//   }
+
+//   async findSubmitted() {
+//     return this.prisma.application.findMany({
+//       where: {
+//         status: {
+//           in: [ApplicationStatus.SUBMITTED, ApplicationStatus.REVIEWER_REVIEW],
+//         },
+//       },
+//     });
+//   }
+
+//   // =========================
+//   // UPDATE (Save Step)
+//   // =========================
+//   async updateApplication(
+//     userId: string,
+//     applicationId: string,
+//     dto: { step: string; data: any },
+//   ) {
+//     const app = await this.getOwnedApplication(userId, applicationId);
+//     const profileId = app.profileId;
+
+//     if (!profileId) {
+//       throw new BadRequestException('Application has no profile');
+//     }
+
+//     await this.handleStepUpdate(
+//       dto.step,
+//       dto.data,
+//       profileId,
+//       applicationId,
+//       userId,
+//     );
+
+//     const profile = await this.getProfileOrFail(profileId);
+//     const completion = this.calculateProfileCompletion(profile);
+
+//     await this.prisma.application.update({
+//       where: { id: applicationId },
+//       data: { progress: completion },
+//     });
+
+//     return {
+//       message: 'Step saved successfully',
+//       completion,
+//     };
+//   }
+
+//   // =========================
+//   // STEP HANDLER (CORE CLEAN)
+//   // =========================
+//   private async handleStepUpdate(
+//     step: string,
+//     data: any,
+//     profileId: string,
+//     applicationId: string,
+//     userId: string,
+//   ) {
+//     switch (step) {
+//       case 'personal':
+//         return this.updatePersonal(profileId, data);
+
+//       case 'education':
+//         return this.updateEducation(profileId, data);
+
+//       case 'experience':
+//         return this.updateExperience(profileId, data);
+
+//       case 'documents':
+//         return this.updateDocuments(applicationId, profileId, userId, data);
+
+//       case 'certifications':
+//         return this.updateCertifications(profileId, data);
+
+//       default:
+//         throw new BadRequestException(`Invalid step: ${step}`);
+//     }
+//   }
+
+//   // =========================
+//   // STEP METHODS
+//   // =========================
+
+//   private async updatePersonal(profileId: string, data: any) {
+//     if (!data || typeof data !== 'object') {
+//       throw new BadRequestException('Invalid personal data');
+//     }
+
+//     const required = [
+//       'fullName',
+//       'fullNameEn',
+//       'nationalId',
+//       'specialization',
+//       'university',
+//     ];
+
+//     const missing = required.filter((f) => !data[f]);
+//     if (missing.length) {
+//       throw new BadRequestException(`Missing fields: ${missing.join(', ')}`);
+//     }
+
+//     return this.prisma.profile.update({
+//       where: { id: profileId },
+//       data: {
+//         fullNameAr: data.fullName,
+//         fullNameEn: data.fullNameEn,
+//         nationalId: data.nationalId,
+//         phone: data.phoneNumber || data.phone,
+//         address: data.address,
+//         specialization: data.specialization,
+//         graduationYear: data.graduationYear
+//           ? parseInt(data.graduationYear)
+//           : null,
+//         university: data.university,
+//       },
+//     });
+//   }
+
+//   private async updateEducation(profileId: string, data: any[]) {
+//     if (!Array.isArray(data)) {
+//       throw new BadRequestException('Education must be array');
+//     }
+
+//     await this.prisma.education.deleteMany({ where: { profileId } });
+
+//     if (!data.length) return;
+
+//     return this.prisma.education.createMany({
+//       data: data.map((e) => ({
+//         ...e,
+//         profileId,
+//       })),
+//     });
+//   }
+
+//   private async updateExperience(profileId: string, data: any[]) {
+//     if (!Array.isArray(data)) {
+//       throw new BadRequestException('Experience must be array');
+//     }
+
+//     await this.prisma.experience.deleteMany({ where: { profileId } });
+
+//     if (!data.length) return;
+
+//     return this.prisma.experience.createMany({
+//       data: data.map((e) => ({
+//         ...e,
+//         startDate: new Date(e.startDate),
+//         endDate: e.endDate ? new Date(e.endDate) : null,
+//         profileId,
+//       })),
+//     });
+//   }
+
+//   private async updateDocuments(
+//     applicationId: string,
+//     profileId: string,
+//     userId: string,
+//     data: any[],
+//   ) {
+//     if (!Array.isArray(data)) {
+//       throw new BadRequestException('Documents must be array');
+//     }
+
+//     await this.prisma.document.deleteMany({ where: { applicationId } });
+
+//     if (!data.length) return;
+
+//     return this.prisma.document.createMany({
+//       data: data.map((d) => ({
+//         type: d.type,
+//         fileUrl: d.file_url || d.fileUrl,
+//         status: 'PENDING',
+//         userId,
+//         profileId,
+//         applicationId,
+//       })),
+//     });
+//   }
+
+//   private async updateCertifications(profileId: string, data: any[]) {
+//     if (!Array.isArray(data)) {
+//       throw new BadRequestException('Certifications must be array');
+//     }
+
+//     await this.prisma.certification.deleteMany({ where: { profileId } });
+
+//     return this.prisma.certification.createMany({
+//       data: data.map((c) => ({
+//         ...c,
+//         profileId,
+//       })),
+//     });
+//   }
+
+//   // =========================
+//   // SUBMIT
+//   // =========================
+//   async submitApplication(userId: string, applicationId: string) {
+//     const app = await this.getOwnedApplication(userId, applicationId);
+
+//     const completion = this.calculateProfileCompletion(app.profile);
+
+//     if (completion < 80) {
+//       throw new ForbiddenException(`Completion ${completion}% أقل من المطلوب`);
+//     }
+
+//     return this.prisma.application.update({
+//       where: { id: applicationId },
+//       data: {
+//         status: ApplicationStatus.SUBMITTED,
+//         submittedAt: new Date(),
+//       },
+//     });
+//   }
+
+//   // =========================
+//   // Admin / Reviewer Actions
+//   // =========================
+//   async reviewApplication(
+//     applicationId: string,
+//     userId: string,
+//     decision: 'APPROVED' | 'REJECTED' | 'REQUEST_CHANGES',
+//     comment?: string,
+//   ) {
+//     const app = await this.prisma.application.findUnique({
+//       where: { id: applicationId },
+//     });
+//     if (!app) throw new NotFoundException('Application not found');
+
+//     // 🔹 جلب المرحلة الحالية من workflowService
+//     const stage = await this.workflowService.getCurrentStage(applicationId);
+
+//     // 🔹 التحقق من مراجعة نفس المرحلة مسبقًا
+//     const existing = await this.prisma.applicationReview.findFirst({
+//       where: { applicationId, reviewerId: userId, stage },
+//     });
+//     if (existing)
+//       throw new BadRequestException('You already reviewed this stage');
+
+//     // 🔹 حفظ المراجعة
+//     const reviewer = await this.prisma.user.findUnique({
+//       where: { id: userId },
+//     });
+//     const review = await this.prisma.applicationReview.create({
+//       data: {
+//         applicationId,
+//         reviewerId: userId,
+//         role: reviewer?.role || 'REVIEWER',
+//         stage,
+//         decision,
+//         comment,
+//       },
+//     });
+
+//     // 🔹 تشغيل Workflow Engine لمعالجة الحالة
+//     await this.workflowService.processAfterReview(applicationId, stage);
+
+//     return review;
+//   }
+
+//   // =========================
+//   // PAYMENTS
+//   // =========================
+//   async submitPayment(
+//     applicationId: string,
+//     userId: string,
+//     amount: number,
+//     method: PaymentMethod,
+//   ) {
+//     const app = await this.getOwnedApplication(userId, applicationId);
+
+//     if (app.status !== ApplicationStatus.SUBMITTED) {
+//       throw new BadRequestException('Submit application first');
+//     }
+
+//     return this.prisma.payment.create({
+//       data: {
+//         applicationId,
+//         userId,
+//         amount,
+//         currency: 'USD',
+//         method,
+//         status: PaymentStatus.PENDING,
+//       },
+//     });
+//   }
+
+//   async verifyPayment(paymentId: string, approve: boolean) {
+//     const payment = await this.prisma.payment.findUnique({
+//       where: { id: paymentId },
+//     });
+
+//     if (!payment) throw new NotFoundException('Payment not found');
+
+//     const status = approve ? PaymentStatus.VERIFIED : PaymentStatus.REJECTED;
+
+//     // تحديث الدفع
+//     await this.prisma.payment.update({
+//       where: { id: paymentId },
+//       data: { status },
+//     });
+
+//     // تحديث حالة التطبيق بعد الدفع
+//     if (approve) {
+//       await this.prisma.application.update({
+//         where: { id: payment.applicationId },
+//         data: { status: ApplicationStatus.PAYMENT_VERIFIED },
+//       });
+//     }
+
+//     return { paymentId, status };
+//   }
+
+//   // =========================
+//   // ACTIONS (WORKFLOW)
+//   // =========================
+//   async performAction(id: string, user: any, action: string) {
+//     const app = await this.prisma.application.findUnique({
+//       where: { id },
+//     });
+
+//     if (!app) throw new NotFoundException('Application not found');
+
+//     const next = getNextState(
+//       { status: app.status, stage: app.currentStage },
+//       user.role,
+//       action,
+//     );
+
+//     if (!next) throw new BadRequestException('Invalid transition');
+
+//     const updated = await this.prisma.application.update({
+//       where: { id },
+//       data: {
+//         status: next.status,
+//         currentStage: next.stage,
+//       },
+//     });
+
+//     const notification = buildNotification({
+//       action,
+//       application: updated,
+//     });
+
+//     await this.prisma.notification.create({
+//       data: {
+//         userId: app.userId,
+//         ...notification,
+//         entity: 'APPLICATION',
+//         entityId: app.id,
+//       },
+//     });
+
+//     return updated;
+//   }
+
+//   async getUserProfile(userId: string) {
+//     return this.prisma.profile.findUnique({ where: { userId } });
+//   }
+// }
+// =========================
+// HELPERS
+// =========================
 import {
   Injectable,
   NotFoundException,
@@ -5,14 +507,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/src/lib/prisma.service';
-import { CreateApplicationDto } from './dto/create-application.dto';
 import { WorkflowService } from '../workflow/index';
-import { PaymentStatus, PaymentMethod } from '../payments/index';
-import {
-  ApplicationStatus,
-  ProfileStatus,
-  ApplicationType,
-} from '@prisma/client';
+import { ApplicationStatus, ProfileStatus } from '@prisma/client';
 import { getNextState } from '../workflow/application-workflow';
 import { buildNotification } from '../workflow/notification-factory';
 
@@ -22,50 +518,26 @@ export class ApplicationsService {
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
   ) {}
-
   // =========================
-  // GET OR CREATE DRAFT
+  // HELPERS
   // =========================
-  async getOrCreateDraft(userId: string) {
-    let draft = await this.prisma.application.findFirst({
-      where: {
-        userId,
-        status: ApplicationStatus.DRAFT,
-      },
+  private async getOwnedApplication(userId: string, applicationId: string) {
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { profile: true },
     });
 
-    if (draft) return draft;
-
-    // ✅ ensure profile exists
-    let profile = await this.prisma.profile.findUnique({
-      where: { userId },
-    });
-
-    if (!profile) {
-      profile = await this.prisma.profile.create({
-        data: {
-          userId,
-          status: ProfileStatus.DRAFT,
-        },
-      });
+    if (!app || app.userId !== userId) {
+      throw new NotFoundException('Application not found');
     }
 
-    return this.prisma.application.create({
-      data: {
-        userId,
-        profileId: profile.id,
-        status: ApplicationStatus.DRAFT,
-        currentStep: 'personal',
-        progress: 0,
-      },
-    });
+    return app;
   }
-
-  // =========================
-  // GET MY APPLICATIONS
-  // =========================
-  async getMyApplications(userId: string) {
-    return this.prisma.application.findMany({
+  
+ 
+ async getMyApplications(userId: string) {
+  try {
+    const applications = await this.prisma.application.findMany({
       where: { userId },
       include: {
         profile: {
@@ -77,361 +549,43 @@ export class ApplicationsService {
       },
       orderBy: { createdAt: 'desc' },
     });
-  }
 
-  async findSubmitted() {
-    return this.prisma.application.findMany({
-      where: {
-        status: {
-          in: [ApplicationStatus.SUBMITTED, ApplicationStatus.REVIEWER_REVIEW],
-        },
+    // 🛡️ حماية من null relations
+    return applications.map((app) => ({
+      ...app,
+      profile: app.profile ?? {
+        fullNameAr: null,
+        fullNameEn: null,
       },
+    }));
+  } catch (error) {
+    console.error('getMyApplications ERROR:', error);
+
+    throw new InternalServerErrorException({
+      message: 'Failed to fetch applications',
+      details: error?.message,
     });
   }
+}
 
-  // =========================
-  // UPDATE (Save Step)
-  // =========================
-  async updateApplication(
-    userId: string,
-    applicationId: string,
-    dto: { step: string; data: any },
-  ) {
-    console.log('UPDATE APPLICATION:', { userId, applicationId, dto });
-    console.log('DTO DATA:', JSON.stringify(dto.data, null, 2));
-
-    let app;
-    try {
-      app = await this.prisma.application.findUnique({
-        where: { id: applicationId },
-        include: { profile: true },
-      });
-      console.log('FOUND APP:', app);
-    } catch (error) {
-      console.error('ERROR FETCHING APPLICATION:', error);
-      throw new BadRequestException('Invalid application ID');
-    }
-
-    if (!app || app.userId !== userId) {
-      console.error('APPLICATION NOT FOUND OR NOT OWNED', { app, userId });
-      throw new NotFoundException('Application not found');
-    }
-
-    const profileId = app.profileId;
-    if (!profileId) {
-      console.error('INVALID APPLICATION WITHOUT PROFILE ID', {
-        applicationId,
-      });
-      throw new BadRequestException('Invalid application profile link');
-    }
-
-    let profile = await this.prisma.profile.findUnique({
+  private async getProfileOrFail(profileId: string) {
+    const profile = await this.prisma.profile.findUnique({
       where: { id: profileId },
       include: {
         educations: true,
         experiences: true,
         documents: true,
+        certifications: true,
       },
     });
 
-    if (!profile) {
-      console.error('PROFILE FOR APPLICATION NOT FOUND', { profileId });
-      throw new NotFoundException('Profile for application not found');
-    }
-
-    try {
-      switch (dto.step) {
-        case 'personal':
-          if (!dto.data || typeof dto.data !== 'object') {
-            throw new BadRequestException(
-              'Personal data is required and must be an object',
-            );
-          }
-
-          // Validate required fields
-          const requiredPersonalFields = [
-            'fullName',
-            'fullNameEn',
-            'nationalId',
-            'specialization',
-            'university',
-          ];
-          const missingPersonalFields = requiredPersonalFields.filter(
-            (field) =>
-              !dto.data[field] || String(dto.data[field]).trim() === '',
-          );
-
-          if (missingPersonalFields.length > 0) {
-            throw new BadRequestException(
-              `Missing required personal fields: ${missingPersonalFields.join(', ')}`,
-            );
-          }
-
-          await this.prisma.profile.update({
-            where: { id: profileId },
-            data: {
-              fullNameAr: dto.data.fullName,
-              fullNameEn: dto.data.fullNameEn,
-              nationalId: dto.data.nationalId,
-              phone: dto.data.phoneNumber || dto.data.phone,
-              address: dto.data.address,
-              specialization: dto.data.specialization,
-              graduationYear: dto.data.graduationYear
-                ? parseInt(dto.data.graduationYear)
-                : null,
-              university: dto.data.university,
-            },
-          });
-          break;
-
-        case 'education':
-          if (!Array.isArray(dto.data)) {
-            throw new BadRequestException('Education data must be an array');
-          }
-
-          // Allow empty education array (user might not have education yet)
-          await this.prisma.education.deleteMany({ where: { profileId } });
-          if (dto.data.length > 0) {
-            // Validate each education entry
-            for (const edu of dto.data) {
-              if (
-                !edu.degree ||
-                !edu.field ||
-                !edu.institution ||
-                !edu.country
-              ) {
-                throw new BadRequestException(
-                  'Each education entry must include degree, field, institution, and country',
-                );
-              }
-            }
-
-            await this.prisma.education.createMany({
-              data: dto.data.map((e) => ({
-                degree: e.degree,
-                field: e.field,
-                institution: e.institution,
-                country: e.country,
-                startYear: e.startYear ? parseInt(e.startYear) : null,
-                endYear: e.endYear ? parseInt(e.endYear) : null,
-                inProgress: e.inProgress || false,
-                profileId,
-              })),
-            });
-          }
-          break;
-
-        case 'experience':
-          if (!Array.isArray(dto.data)) {
-            throw new BadRequestException('Experience data must be an array');
-          }
-
-          // Allow empty experience array
-          await this.prisma.experience.deleteMany({ where: { profileId } });
-          if (dto.data.length > 0) {
-            // Validate experience data
-            for (const e of dto.data) {
-              if (!e.company || !e.position || !e.startDate) {
-                throw new BadRequestException(
-                  'Company, position, and start date are required for each experience entry',
-                );
-              }
-              if (!e.currentlyWorking && !e.endDate) {
-                throw new BadRequestException(
-                  'End date is required if not currently working',
-                );
-              }
-            }
-
-            await this.prisma.experience.createMany({
-              data: dto.data.map((e) => {
-                // Handle month format dates (yyyy-MM) by adding day if needed
-                let startDateStr = e.startDate;
-                if (startDateStr && startDateStr.length === 7) {
-                  // yyyy-MM format
-                  startDateStr += '-01'; // Add first day of month
-                }
-
-                let endDateStr = e.endDate;
-                if (endDateStr && endDateStr.length === 7) {
-                  // yyyy-MM format
-                  endDateStr += '-01'; // Add first day of month
-                }
-
-                const startDate = new Date(startDateStr);
-                const endDate = endDateStr ? new Date(endDateStr) : null;
-
-                if (isNaN(startDate.getTime())) {
-                  throw new BadRequestException(
-                    `Invalid start date: ${e.startDate}`,
-                  );
-                }
-                if (endDate && isNaN(endDate.getTime())) {
-                  throw new BadRequestException(
-                    `Invalid end date: ${e.endDate}`,
-                  );
-                }
-
-                const isCurrent = e.currentlyWorking || false;
-                const years = endDate
-                  ? Math.floor(
-                      (endDate.getTime() - startDate.getTime()) /
-                        (1000 * 60 * 60 * 24 * 365),
-                    )
-                  : 0;
-                const months = endDate
-                  ? Math.floor(
-                      ((endDate.getTime() - startDate.getTime()) %
-                        (1000 * 60 * 60 * 24 * 365)) /
-                        (1000 * 60 * 60 * 24 * 30),
-                    )
-                  : 0;
-                return {
-                  company: e.company,
-                  position: e.position,
-                  startDate,
-                  endDate,
-                  isCurrent,
-                  years,
-                  months,
-                  profileId,
-                };
-              }),
-            });
-          }
-          break;
-
-        case 'documents':
-          if (!Array.isArray(dto.data)) {
-            throw new BadRequestException('Documents data must be an array');
-          }
-
-          // Allow empty documents array
-          await this.prisma.document.deleteMany({ where: { applicationId } });
-          if (dto.data.length > 0) {
-            const invalidDoc = dto.data.find(
-              (d) => !d.type || !(d.file_url || d.fileUrl),
-            );
-            if (invalidDoc) {
-              throw new BadRequestException(
-                'Each document must include type and fileUrl/file_url',
-              );
-            }
-
-            await this.prisma.document.createMany({
-              data: dto.data.map((d) => {
-                const normalizedStatus =
-                  d.status && typeof d.status === 'string'
-                    ? d.status.toUpperCase()
-                    : 'PENDING';
-
-                const safeStatus = ['PENDING', 'VERIFIED', 'REJECTED'].includes(
-                  normalizedStatus,
-                )
-                  ? normalizedStatus
-                  : 'PENDING';
-
-                return {
-                  type: d.type,
-                  fileUrl: d.file_url || d.fileUrl,
-                  status: safeStatus,
-                  userId,
-                  profileId,
-                  applicationId,
-                };
-              }),
-            });
-          }
-          break;
-
-        case 'certifications':
-          if (!Array.isArray(dto.data)) {
-            throw new BadRequestException(
-              'Certifications data must be an array',
-            );
-          }
-
-          // Allow empty certifications array
-          const validCerts = dto.data.filter(
-            (c) =>
-              c?.nameEn && c?.nameAr && c?.descriptionEn && c?.descriptionAr,
-          );
-
-          await this.prisma.certification.deleteMany({ where: { profileId } });
-          if (validCerts.length > 0) {
-            await this.prisma.certification.createMany({
-              data: validCerts.map((c) => ({
-                id: c.id, // optional, if passed
-                profileId,
-                nameEn: c.nameEn,
-                nameAr: c.nameAr,
-                descriptionEn: c.descriptionEn,
-                descriptionAr: c.descriptionAr,
-                status: c.status || 'pending',
-                appliedDate: c.appliedDate
-                  ? new Date(c.appliedDate)
-                  : new Date(),
-              })),
-            });
-          }
-          break;
-
-        default:
-          throw new BadRequestException(
-            `Invalid step: ${dto.step}. Valid steps are: personal, education, experience, documents, certifications`,
-          );
-      }
-
-      profile = await this.prisma.profile.findUnique({
-        where: { id: profileId },
-        include: {
-          educations: true,
-          experiences: true,
-          documents: true,
-        },
-      });
-
-      if (!profile) {
-        throw new NotFoundException('Profile not found after update');
-      }
-
-      const completion = this.calculateProfileCompletion(profile);
-      await this.prisma.application.update({
-        where: { id: applicationId },
-        data: { progress: completion },
-      });
-
-      return {
-        message: 'Step saved successfully',
-        completion,
-      };
-    } catch (error) {
-      console.error('ERROR IN updateApplication:', {
-        applicationId,
-        step: dto.step,
-        error: error.message,
-        stack: error.stack,
-        data: JSON.stringify(dto.data, null, 2),
-      });
-
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-      throw new BadRequestException(
-        `Could not save application step: ${error.message}`,
-      );
-    }
+    if (!profile) throw new NotFoundException('Profile not found');
+    return profile;
   }
 
   private calculateProfileCompletion(profile: any): number {
+    if (!profile) return 0;
     let score = 0;
-
-    // ======================
-    // Personal Info (40%)
-    // ======================
 
     const personalFields = [
       'fullNameAr',
@@ -442,102 +596,350 @@ export class ApplicationsService {
       'university',
     ];
 
-    const filledPersonal = personalFields.filter((f) => profile[f]);
-    const personalScore = (filledPersonal.length / personalFields.length) * 40;
+    const filled = personalFields.filter((f) => profile[f]);
+    score += (filled.length / personalFields.length) * 40;
 
-    score += personalScore;
-
-    // ======================
-    // Education (20%)
-    // ======================
-
-    if (profile.educations && profile.educations.length > 0) {
-      score += 20;
-    }
-
-    // ======================
-    // Experience (20%)
-    // ======================
-
-    if (profile.experiences && profile.experiences.length > 0) {
-      score += 20;
-    }
-
-    // ======================
-    // Documents (20%)
-    // ======================
-
-    if (profile.documents && profile.documents.length > 0) {
-      score += 20;
-    }
+    if (profile.educations?.length) score += 20;
+    if (profile.experiences?.length) score += 20;
+    if (profile.documents?.length) score += 10;
+    if (profile.certifications?.length) score += 10;
 
     return Math.round(score);
   }
 
   // =========================
-  // SUBMIT
+  // GET OR CREATE DRAFT
   // =========================
-  async submitApplication(userId: string, applicationId: string) {
-    const app = await this.prisma.application.findUnique({
-      where: { id: applicationId },
-      include: { profile: true },
+  async getOrCreateDraft(userId: string) {
+  try {
+    let draft = await this.prisma.application.findFirst({
+      where: {
+        userId,
+        status: 'DRAFT',
+      },
+      include: {
+        profile: true,
+      },
     });
 
-    if (!app || app.userId !== userId) {
-      throw new NotFoundException('Application not found');
+    if (!draft) {
+      // 🧠 إنشاء draft جديد + profile تلقائي
+      draft = await this.prisma.application.create({
+        data: {
+          userId,
+          status: 'DRAFT',
+          profile: {
+            create: {
+              fullNameAr: '',
+              fullNameEn: '',
+              nationalId: '',
+            },
+          },
+        },
+        include: {
+          profile: true,
+        },
+      });
     }
 
-    if (!app.profile) {
-      throw new BadRequestException(
-        'Profile is required to submit application',
-      );
-    }
+    return draft;
+  } catch (error) {
+    console.error('getOrCreateDraft ERROR:', error);
 
+    throw new InternalServerErrorException({
+      message: 'Failed to get or create draft',
+      details: error?.message,
+    });
+  }
+}
+
+  // =========================
+  // UPDATE STEP (Draft / Autosave)
+  // =========================
+  async updateApplication(
+    userId: string,
+    applicationId: string,
+    dto: { step: string; data: any },
+  ) {
+    const app = await this.getOwnedApplication(userId, applicationId);
+
+    if (!app.profileId)
+      throw new BadRequestException('Application has no profile');
+
+    await this.handleStepUpdate(
+      dto.step,
+      dto.data,
+      app.profileId,
+      applicationId,
+      userId,
+    );
+
+    const profile = await this.getProfileOrFail(app.profileId);
+    const completion = this.calculateProfileCompletion(profile);
+
+    // تحديث التقدم
+    await this.prisma.application.update({
+      where: { id: applicationId },
+      data: { progress: completion },
+    });
+
+    // إضافة Audit Log
+    await this.prisma.activityLog.create({
+      data: {
+        userId,
+        action: 'STEP_UPDATED',
+        entity: 'APPLICATION',
+        entityId: applicationId,
+        meta: { step: dto.step, completion },
+      },
+    });
+
+    return { message: 'Step saved successfully', completion };
+  }
+
+  private async handleStepUpdate(
+    step: string,
+    data: any,
+    profileId: string,
+    applicationId: string,
+    userId: string,
+  ) {
+    switch (step) {
+      case 'personal':
+        await this.updatePersonal(profileId, data);
+        break;
+      case 'education':
+        await this.updateEducation(profileId, data);
+        break;
+      case 'experience':
+        await this.updateExperience(profileId, data);
+        break;
+      case 'documents':
+        await this.updateDocuments(applicationId, profileId, userId, data);
+        break;
+      case 'certifications':
+        await this.updateCertifications(profileId, data);
+        break;
+      default:
+        throw new BadRequestException(`Invalid step: ${step}`);
+    }
+  }
+
+  private async updatePersonal(profileId: string, data: any) {
+    return this.prisma.profile.update({
+      where: { id: profileId },
+      data: {
+        fullNameAr: data.fullName,
+        fullNameEn: data.fullNameEn,
+        nationalId: data.nationalId,
+        phone: data.phoneNumber || data.phone,
+        address: data.address,
+        specialization: data.specialization,
+        graduationYear: data.graduationYear
+          ? parseInt(data.graduationYear)
+          : null,
+        university: data.university,
+      },
+    });
+  }
+
+  private async updateEducation(profileId: string, data: any[]) {
+    await this.prisma.education.deleteMany({ where: { profileId } });
+    if (!data.length) return;
+    return this.prisma.education.createMany({
+      data: data.map((e) => ({ ...e, profileId })),
+    });
+  }
+
+  private async updateExperience(profileId: string, data: any[]) {
+    await this.prisma.experience.deleteMany({ where: { profileId } });
+    if (!data.length) return;
+    return this.prisma.experience.createMany({
+      data: data.map((e) => ({
+        ...e,
+        profileId,
+        startDate: new Date(e.startDate),
+        endDate: e.endDate ? new Date(e.endDate) : null,
+      })),
+    });
+  }
+
+  private async updateDocuments(
+    applicationId: string,
+    profileId: string,
+    userId: string,
+    data: any[],
+  ) {
+    await this.prisma.document.deleteMany({ where: { applicationId } });
+    if (!data.length) return;
+    return this.prisma.document.createMany({
+      data: data.map((d) => ({
+        type: d.type,
+        fileUrl: d.file_url || d.fileUrl,
+        status: 'PENDING',
+        userId,
+        profileId,
+        applicationId,
+      })),
+    });
+  }
+
+  private async updateCertifications(profileId: string, data: any[]) {
+    await this.prisma.certification.deleteMany({ where: { profileId } });
+    if (!data.length) return;
+    return this.prisma.certification.createMany({
+      data: data.map((c) => ({ ...c, profileId })),
+    });
+  }
+
+  // =========================
+  // SUBMIT APPLICATION
+  // =========================
+  async submitApplication(userId: string, applicationId: string) {
+    const app = await this.getOwnedApplication(userId, applicationId);
     const completion = this.calculateProfileCompletion(app.profile);
 
     if (completion < 80) {
       throw new ForbiddenException(
-        `Cannot submit: Profile completion is ${completion}%. Minimum 80% required. Please complete your personal information, education, experience, and documents.`,
+        `Cannot submit. Completion ${completion}% < 80%`,
       );
     }
 
-    // Check profile status
-    if (app.profile.status === ProfileStatus.DRAFT) {
-      throw new ForbiddenException(
-        'Cannot submit application until profile is submitted for review. Please submit your profile first.',
-      );
-    }
-
-    if (app.profile.status === ProfileStatus.REJECTED) {
-      throw new ForbiddenException(
-        'Cannot submit application because profile is rejected. Please update your profile and resubmit.',
-      );
-    }
-
-    if (
-      app.profile.status !== ProfileStatus.SUBMITTED &&
-      app.profile.status !== ProfileStatus.APPROVED
-    ) {
-      throw new ForbiddenException(
-        `Cannot submit application with profile status ${app.profile.status}. Profile must be submitted or approved first.`,
-      );
-    }
-
-    return this.prisma.application.update({
+    const updated = await this.prisma.application.update({
       where: { id: applicationId },
       data: {
         status: ApplicationStatus.SUBMITTED,
         submittedAt: new Date(),
       },
     });
+
+    // Notification للمستخدم
+    const notification = buildNotification({
+      action: 'SUBMIT',
+      application: updated,
+    });
+    await this.prisma.notification.create({
+      data: {
+        userId,
+        ...notification,
+        entity: 'APPLICATION',
+        entityId: updated.id,
+      },
+    });
+
+    // Audit Log
+    await this.prisma.activityLog.create({
+      data: {
+        userId,
+        action: 'APPLICATION_SUBMITTED',
+        entity: 'APPLICATION',
+        entityId: applicationId,
+      },
+    });
+
+    return updated;
   }
 
+	async updateDraftStep(
+  userId: string,
+  step: string,
+  data: any,
+) {
+  try {
+    const draft = await this.getOrCreateDraft(userId);
+
+    switch (step) {
+      case 'personal':
+        return await this.prisma.profile.update({
+          where: { id: draft.profileId },
+          data: {
+            fullNameAr: data.fullName,
+            fullNameEn: data.fullNameEn,
+            nationalId: data.nationalId,
+            phone: data.phoneNumber,
+            dateOfBirth: data.birthDate
+              ? new Date(data.birthDate)
+              : null,
+            gender: data.gender,
+            address: data.address,
+            city: data.city,
+            country: data.country,
+            specialization: data.specialization,
+            graduationYear: data.graduationYear,
+            university: data.university,
+          },
+        });
+
+      case 'education':
+        // 🧹 حذف القديم + إضافة الجديد (clean sync)
+        await this.prisma.education.deleteMany({
+          where: { profileId: draft.profileId },
+        });
+
+        return await this.prisma.education.createMany({
+          data: data.map((edu) => ({
+            ...edu,
+            profileId: draft.profileId,
+          })),
+        });
+
+      case 'experience':
+        await this.prisma.experience.deleteMany({
+          where: { profileId: draft.profileId },
+        });
+
+        return await this.prisma.experience.createMany({
+          data: data.map((exp) => ({
+            ...exp,
+            profileId: draft.profileId,
+            startDate: new Date(exp.startDate),
+            endDate: exp.endDate ? new Date(exp.endDate) : null,
+          })),
+        });
+
+      case 'documents':
+        await this.prisma.document.deleteMany({
+          where: { applicationId: draft.id },
+        });
+
+        return await this.prisma.document.createMany({
+          data: data.map((doc) => ({
+            ...doc,
+            userId,
+            applicationId: draft.id,
+          })),
+        });
+
+      case 'certifications':
+        await this.prisma.certification.deleteMany({
+          where: { profileId: draft.profileId },
+        });
+
+        return await this.prisma.certification.createMany({
+          data: data.map((cert) => ({
+            ...cert,
+            profileId: draft.profileId,
+          })),
+        });
+
+      default:
+        throw new BadRequestException('Invalid step');
+    }
+  } catch (error) {
+    console.error('updateDraftStep ERROR:', error);
+
+    throw new InternalServerErrorException({
+      message: `Failed to update step: ${step}`,
+      details: error?.message,
+    });
+  }
+}
   // =========================
-  // Admin / Reviewer Actions
+  // REVIEW & DECISION
   // =========================
   async reviewApplication(
     applicationId: string,
-    userId: string,
+    reviewerId: string,
     decision: 'APPROVED' | 'REJECTED' | 'REQUEST_CHANGES',
     comment?: string,
   ) {
@@ -546,164 +948,25 @@ export class ApplicationsService {
     });
     if (!app) throw new NotFoundException('Application not found');
 
-    // 🔹 جلب المرحلة الحالية من workflowService
     const stage = await this.workflowService.getCurrentStage(applicationId);
 
-    // 🔹 التحقق من مراجعة نفس المرحلة مسبقًا
     const existing = await this.prisma.applicationReview.findFirst({
-      where: { applicationId, reviewerId: userId, stage },
+      where: { applicationId, reviewerId, stage },
     });
-    if (existing)
-      throw new BadRequestException('You already reviewed this stage');
+    if (existing) throw new BadRequestException('Already reviewed this stage');
 
-    // 🔹 حفظ المراجعة
-    const reviewer = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
     const review = await this.prisma.applicationReview.create({
-      data: {
-        applicationId,
-        reviewerId: userId,
-        role: reviewer?.role || 'REVIEWER',
-        stage,
-        decision,
-        comment,
-      },
+      data: { applicationId, reviewerId, stage, decision, comment },
     });
 
-    // 🔹 تشغيل Workflow Engine لمعالجة الحالة
+    // Update workflow
     await this.workflowService.processAfterReview(applicationId, stage);
 
-    return review;
-  }
-
-  // =========================
-  // PAYMENTS
-  // =========================
-  async submitPayment(
-    applicationId: string,
-    userId: string,
-    amount: number,
-    method: PaymentMethod,
-  ) {
-    const app = await this.prisma.application.findUnique({
-      where: { id: applicationId },
-    });
-
-    if (!app || app.userId !== userId) {
-      throw new NotFoundException('Application not found');
-    }
-
-    if (app.status !== ApplicationStatus.SUBMITTED) {
-      throw new BadRequestException('Application must be submitted first');
-    }
-
-    return this.prisma.payment.create({
-      data: {
-        applicationId,
-        userId,
-        amount,
-        currency: 'USD',
-        method,
-        status: PaymentStatus.PENDING,
-      },
-    });
-  }
-
-  async verifyPayment(paymentId: string, approve: boolean) {
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: paymentId },
-    });
-
-    if (!payment) throw new NotFoundException('Payment not found');
-
-    const status = approve ? PaymentStatus.VERIFIED : PaymentStatus.REJECTED;
-
-    // تحديث الدفع
-    await this.prisma.payment.update({
-      where: { id: paymentId },
-      data: { status },
-    });
-
-    // تحديث حالة التطبيق بعد الدفع
-    if (approve) {
-      await this.prisma.application.update({
-        where: { id: payment.applicationId },
-        data: { status: ApplicationStatus.PAYMENT_VERIFIED },
-      });
-    }
-
-    return { paymentId, status };
-  }
-
-  // =========================
-  // Helpers
-  // =========================
-  private calculateProfileCompletion(profile: any): number {
-    if (!profile) return 0;
-
-    let score = 0;
-    const personalFields = [
-      'fullNameAr',
-      'fullNameEn',
-      'nationalId',
-      'specialization',
-      'graduationYear',
-      'university',
-    ];
-    const filled = personalFields.filter((f) => profile[f]);
-    score += (filled.length / personalFields.length) * 40;
-
-    const educations = Array.isArray(profile.educations)
-      ? profile.educations
-      : [];
-    const experiences = Array.isArray(profile.experiences)
-      ? profile.experiences
-      : [];
-    const documents = Array.isArray(profile.documents) ? profile.documents : [];
-
-    if (educations.length) score += 20;
-    if (experiences.length) score += 20;
-    if (documents.length) score += 20;
-    return Math.round(score);
-  }
-
-  async getUserProfile(userId: string) {
-    return this.prisma.profile.findUnique({ where: { userId } });
-  }
-
-  async performAction(id: string, user: any, action: string) {
-    const app = await this.prisma.application.findUnique({
-      where: { id },
-    });
-
-    const next = getNextState(
-      {
-        status: app.status,
-        stage: app.currentStage,
-      },
-      user.role,
-      action,
-    );
-
-    if (!next) {
-      throw new Error('Invalid transition');
-    }
-
-    const updated = await this.prisma.application.update({
-      where: { id },
-      data: {
-        status: next.status,
-        currentStage: next.stage,
-      },
-    });
-
-    // 🔔 Notification
+    // Notification للمستخدم
     const notification = buildNotification({
-      action,
-      application: updated,
+      action: decision,
+      application: app,
     });
-
     await this.prisma.notification.create({
       data: {
         userId: app.userId,
@@ -713,21 +976,65 @@ export class ApplicationsService {
       },
     });
 
-    // 🧾 Activity Log
+    // Audit Log
     await this.prisma.activityLog.create({
       data: {
-        userId: user.id,
-        action,
+        userId: reviewerId,
+        action: 'APPLICATION_REVIEWED',
         entity: 'APPLICATION',
-        entityId: app.id,
-        metadata: {
-          from: app.status,
-          to: next.status,
-          stage: next.stage,
-        },
+        entityId: applicationId,
+        meta: { decision, stage },
       },
     });
 
-    return updated;
+    return review;
   }
+
+  // =========================
+  // Timeline
+  // =========================
+  async getTimeline(applicationId: string) {
+    return this.prisma.activityLog.findMany({
+      where: { entity: 'APPLICATION', entityId: applicationId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+  
+  async submitApplication(userId: string) {
+  try {
+    const draft = await this.prisma.application.findFirst({
+      where: {
+        userId,
+        status: 'DRAFT',
+      },
+      include: {
+        profile: true,
+      },
+    });
+
+    if (!draft) {
+      throw new NotFoundException('Draft not found');
+    }
+
+    // 🧠 Validation قبل الإرسال (مهم جداً)
+    if (!draft.profile?.fullNameAr || !draft.profile?.nationalId) {
+      throw new BadRequestException('Profile is incomplete');
+    }
+
+    return await this.prisma.application.update({
+      where: { id: draft.id },
+      data: {
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('submitApplication ERROR:', error);
+
+    throw new InternalServerErrorException({
+      message: 'Failed to submit application',
+      details: error?.message,
+    });
+  }
+}
 }
