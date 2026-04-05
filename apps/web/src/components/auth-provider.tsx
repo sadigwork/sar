@@ -25,7 +25,6 @@ type AuthContextType = {
   user: User | null;
   token: string | null;
   setUser: (user: User | null) => void;
-  setToken: (token: string | null) => void;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -37,23 +36,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [token, setToken] = useState<string | null>(null);
 
   const router = useRouter();
 
+  // 🔥 المصدر الوحيد للـ token
+  const token = tokenStorage.getAccessToken();
+
   /**
-   * Restore session on refresh
+   * Restore session
    */
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('accessToken');
 
-    if (storedUser && storedToken) {
+    if (storedUser && token) {
       try {
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
-        setToken(storedToken);
-        // redirectByRole(parsedUser.role); // Redirect immediately if already logged in
       } catch {
         tokenStorage.clear();
       }
@@ -69,33 +67,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
 
     try {
-      const res = await AuthApi.login({
-        email,
-        password,
-      });
-      console.log('LOGIN RESPONSE', res);
+      const res = await AuthApi.login({ email, password });
 
-      // ⚡ تحديث الوصول للبنية الجديدة
       const user: User = res.data?.data?.user;
       const tokens = res.data?.data?.tokens;
 
       if (!user || !tokens?.accessToken) {
-        console.error('Login successful but invalid response', res);
         throw new Error('Invalid login response');
       }
 
-      // حفظ البيانات في localStorage و tokenStorage
-      localStorage.setItem('user', JSON.stringify(user));
+      // 🔥 التخزين في مكان واحد فقط
       tokenStorage.setTokens(tokens.accessToken, tokens.refreshToken);
+      localStorage.setItem('user', JSON.stringify(user));
 
       setUser(user);
-      setToken(tokens.accessToken);
 
       redirectByRole(user.role);
-      console.log('تم تسجيل الدخول بنجاح!');
     } catch (error) {
       console.error('Login failed', error);
-      console.log(error || 'Login failed');
       throw error;
     } finally {
       setIsLoading(false);
@@ -109,12 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
 
     try {
-      await AuthApi.register({
-        name,
-        email,
-        password,
-      });
-
+      await AuthApi.register({ name, email, password });
       router.replace('/login');
     } catch (error) {
       console.error('Register failed', error);
@@ -134,28 +118,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     tokenStorage.clear();
     setUser(null);
-    setToken(null);
 
     router.replace('/login');
   };
 
   /**
-   * Role based redirect
+   * Role redirect
    */
   const redirectByRole = (role: Role) => {
     switch (role) {
       case 'ADMIN':
         router.replace('/admin/dashboard');
         break;
-
       case 'REVIEWER':
         router.replace('/reviewer/dashboard');
         break;
-
       case 'REGISTRAR':
         router.replace('/registrar/dashboard');
         break;
-
       default:
         router.replace('/dashboard');
     }
@@ -167,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         token,
         setUser,
-        setToken,
         isLoading,
         login,
         logout,
