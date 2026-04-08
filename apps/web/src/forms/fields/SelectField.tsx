@@ -1,26 +1,34 @@
-import { useFormContext } from 'react-hook-form';
+'use client';
 
-export function SelectField({ name, label, options = [], disabled }) {
+import { useFormContext, get } from 'react-hook-form';
+
+export function SelectField({ name, label, options = [], disabled }: any) {
   const {
     register,
     formState: { errors },
   } = useFormContext();
 
+  const error = get(errors, name);
+
   return (
     <div>
-      <label>{label}</label>
+      <label className="text-sm text-gray-600">{label}</label>
 
-      <select {...register(name)} disabled={disabled}>
-        <option value="">Select...</option>
+      <select
+        {...register(name)}
+        disabled={disabled}
+        className="border p-2 rounded w-full"
+      >
+        <option value="">اختر...</option>
 
-        {options.map((opt) => (
+        {options.map((opt: any) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
           </option>
         ))}
       </select>
 
-      {errors[name] && <p>{errors[name]?.message as string}</p>}
+      {error && <p className="text-red-500 text-sm">{error.message}</p>}
     </div>
   );
 }

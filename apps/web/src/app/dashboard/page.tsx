@@ -66,6 +66,9 @@ export default function DashboardPage() {
     console.log('PROFILE:', profile);
     console.log('APPLICATIONS:', applications);
     console.log('NOTIFICATIONS:', notifications);
+    console.log('ERROR PROFILE:', errorProfile);
+    console.log('ERROR APPLICATIONS:', errorApplications);
+    console.log('ERROR NOTIFICATIONS:', errorNotifications);
     console.groupEnd();
   }, [user, token, profile, applications, notifications]);
 
@@ -79,7 +82,9 @@ export default function DashboardPage() {
 
   // const safeApplications: applications || [];
   // ترتيب حسب الأحدث
-  const sortedApplications = [...applications].sort(
+  const safeApplications = applications || [];
+
+  const sortedApplications = [...safeApplications].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
@@ -246,7 +251,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center">
-              <span className="text-3xl font-bold">{applications.length}</span>
+              <span className="text-3xl font-bold">
+                {safeApplications.length}
+              </span>
               <FileText className="h-8 w-8 text-muted-foreground opacity-50" />
             </div>
             <p className="text-sm text-muted-foreground">

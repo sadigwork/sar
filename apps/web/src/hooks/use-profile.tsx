@@ -15,7 +15,7 @@ export const useProfile = () => {
   );
 
   return {
-    profile: data,
+    profile: data?.data?.data || data?.data || data,
     isLoading: authLoading || isValidating,
     isError: error,
   };

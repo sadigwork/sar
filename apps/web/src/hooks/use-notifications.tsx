@@ -1,7 +1,6 @@
 import useSWR from 'swr';
 import { useAuth } from '@/components/auth-provider';
 import { fetcher } from '@/lib/fetcher';
-import axios from '@/lib/axios';
 
 export interface Notification {
   id: string;
@@ -23,18 +22,29 @@ export const useNotifications = () => {
     },
   );
 
-  const notifications: Notification[] = data || [];
+  const notifications: Notification[] = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data?.data?.data)
+    ? data.data.data
+    : Array.isArray(data?.notifications)
+    ? data.notifications
+    : [];
 
   return {
     notifications,
     isLoading: authLoading || isValidating,
     isError: error,
 
-    unreadCount: notifications.filter((n: any) => !n.read).length,
+    unreadCount: notifications.reduce(
+      (count, notification) => count + (!notification?.read ? 1 : 0),
+      0,
+    ),
 
     markAsRead: async (id: string) => {
       if (!token) return;
-      await fetch(`api/notifications/${id}/read`, null, {
+      await fetch(`api/notifications/${id}/read`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });

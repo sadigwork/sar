@@ -10,8 +10,8 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import * as cookieParser from 'cookie-parser';
-import * as helmet from 'helmet';
-import * as rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { join } from 'path';
 import * as express from 'express';
 
@@ -44,10 +44,7 @@ async function bootstrap() {
   // =========================
   // STATIC FILES (UPLOADS)
   // =========================
-  // app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
-    prefix: '/uploads/',
-  });
+  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
 
   // =========================
   // SWAGGER SETUP

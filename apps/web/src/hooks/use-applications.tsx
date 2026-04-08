@@ -30,12 +30,19 @@ export const useApplications = () => {
     },
   );
 
-  const normalized: Application[] =
-    data?.data?.map((app: Application) => ({
-      ...app,
-      status: mapStatus(app.status),
-      type: mapType(app.type),
-    })) || [];
+  const rawApplications: Application[] = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.data?.data)
+        ? data.data.data
+        : [];
+
+  const normalized: Application[] = rawApplications.map((app: Application) => ({
+    ...app,
+    status: mapStatus(app.status),
+    type: mapType(app.type),
+  }));
 
   return {
     applications: normalized,

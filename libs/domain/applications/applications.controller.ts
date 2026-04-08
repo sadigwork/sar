@@ -275,6 +275,11 @@ export class ApplicationsController {
     return this.appService.getOrCreateDraft(req.user.sub);
   }
 
+  @Patch('my-draft')
+  async updateMyDraft(@Req() req, @Body() dto: { step: string; data: any }) {
+    return this.appService.updateDraftStep(req.user.sub, dto.step, dto.data);
+  }
+
   @Patch(':id')
   async update(
     @Req() req,
@@ -282,6 +287,11 @@ export class ApplicationsController {
     @Body() dto: { step: string; data: any },
   ) {
     return this.appService.updateApplication(req.user.sub, id, dto);
+  }
+
+  @Post('my-draft/submit')
+  async submitMyDraft(@Req() req) {
+    return this.appService.submitApplication(req.user.sub);
   }
 
   @Post(':id/submit')

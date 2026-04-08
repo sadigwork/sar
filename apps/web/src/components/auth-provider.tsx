@@ -40,7 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   // 🔥 المصدر الوحيد للـ token
-  const token = tokenStorage.getAccessToken();
+  // const token = tokenStorage.getAccessToken();
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const accessToken = tokenStorage.getAccessToken();
+    setToken(accessToken);
+  }, []);
 
   /**
    * Restore session
@@ -58,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setIsLoading(false);
-  }, []);
+  }, [token]);
 
   /**
    * LOGIN
@@ -81,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('user', JSON.stringify(user));
 
       setUser(user);
+      setToken(tokens.accessToken);
 
       redirectByRole(user.role);
     } catch (error) {
@@ -118,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     tokenStorage.clear();
     setUser(null);
+    setToken(null);
 
     router.replace('/login');
   };

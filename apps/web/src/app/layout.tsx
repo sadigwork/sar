@@ -7,6 +7,7 @@ import { LanguageProvider } from '@/components/language-provider';
 import { AuthProvider } from '@/components/auth-provider';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import Providers from '@/providers/Providers'; // ✅ جديد
 import './global.css';
 
 // const inter = Inter({
@@ -34,22 +35,24 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
-        >
-          <LanguageProvider>
-            <AuthProvider>
-              <div className="flex min-h-screen flex-col">
-                <Header />
-                <main className="flex-1">{children}</main>
-                <Footer />
-              </div>
-              <Toaster />
-            </AuthProvider>
-          </LanguageProvider>
-        </ThemeProvider>
+        <Providers>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem={false}
+          >
+            <LanguageProvider>
+              <AuthProvider>
+                <div className="flex min-h-screen flex-col">
+                  <Header />
+                  <main className="flex-1">{children}</main>
+                  <Footer />
+                </div>
+                <Toaster />
+              </AuthProvider>
+            </LanguageProvider>
+          </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );

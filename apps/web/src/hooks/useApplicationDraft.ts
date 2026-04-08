@@ -1,16 +1,18 @@
-'use client';
-
 import { useQuery } from '@tanstack/react-query';
 import { fetcher } from '@/lib/fetcher';
-import { useAuth } from '../components/auth-provider';
+import { useAuth } from '@/components/auth-provider';
 
 export function useApplicationDraft() {
   const { token } = useAuth();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['applicationDraft'],
-    queryFn: () => fetcher('/application/draft'),
+    queryFn: () => fetcher(['/applications/my-draft', token!]),
     enabled: !!token,
-    retry: 1,
+    retry: false,
+    select: (response: any) =>
+      response?.data?.data || response?.data || response,
   });
+
+  return query; // { data, isLoading, error, refetch }
 }

@@ -1,18 +1,17 @@
-import api from '@/lib//api';
+import api from './api';
+export const fetcher = async (args: any) => {
+  let url: string;
 
-const API_URL = 'http://localhost:3000/api';
-export const fetcher = async (url: string) => {
-  console.log('🚀 Fetching URL:', url);
-
-  const res = await api.get(url);
-
-  let data = res.data;
-  if (!data) throw new Error('No data recieved');
-
-  // 🔥 فك التعشيش (حل مشكلتك الكبيرة)
-  while (data?.data) {
-    data = data.data;
+  // إذا SWR أعطاك array
+  if (Array.isArray(args)) {
+    url = args[0]; // ناخذ الرابط فقط
+  } else {
+    url = args;
   }
 
-  return data;
+  console.log('🚀 Fetching URL:', url);
+
+  const response = await api.get(url);
+
+  return response.data;
 };

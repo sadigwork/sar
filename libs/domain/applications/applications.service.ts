@@ -505,6 +505,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/src/lib/prisma.service';
 import { WorkflowService } from '../workflow/index';
@@ -533,40 +534,39 @@ export class ApplicationsService {
 
     return app;
   }
-  
- 
- async getMyApplications(userId: string) {
-  try {
-    const applications = await this.prisma.application.findMany({
-      where: { userId },
-      include: {
-        profile: {
-          select: {
-            fullNameAr: true,
-            fullNameEn: true,
+
+  async getMyApplications(userId: string) {
+    try {
+      const applications = await this.prisma.application.findMany({
+        where: { userId },
+        include: {
+          profile: {
+            select: {
+              fullNameAr: true,
+              fullNameEn: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      });
 
-    // 🛡️ حماية من null relations
-    return applications.map((app) => ({
-      ...app,
-      profile: app.profile ?? {
-        fullNameAr: null,
-        fullNameEn: null,
-      },
-    }));
-  } catch (error) {
-    console.error('getMyApplications ERROR:', error);
+      // 🛡️ حماية من null relations
+      return applications.map((app) => ({
+        ...app,
+        profile: app.profile ?? {
+          fullNameAr: null,
+          fullNameEn: null,
+        },
+      }));
+    } catch (error) {
+      console.error('getMyApplications ERROR:', error);
 
-    throw new InternalServerErrorException({
-      message: 'Failed to fetch applications',
-      details: error?.message,
-    });
+      throw new InternalServerErrorException({
+        message: 'Failed to fetch applications',
+        details: error?.message,
+      });
+    }
   }
-}
 
   private async getProfileOrFail(profileId: string) {
     const profile = await this.prisma.profile.findUnique({
@@ -611,47 +611,47 @@ export class ApplicationsService {
   // GET OR CREATE DRAFT
   // =========================
   async getOrCreateDraft(userId: string) {
-  try {
-    let draft = await this.prisma.application.findFirst({
-      where: {
-        userId,
-        status: 'DRAFT',
-      },
-      include: {
-        profile: true,
-      },
-    });
-
-    if (!draft) {
-      // 🧠 إنشاء draft جديد + profile تلقائي
-      draft = await this.prisma.application.create({
-        data: {
+    try {
+      let draft = await this.prisma.application.findFirst({
+        where: {
           userId,
           status: 'DRAFT',
-          profile: {
-            create: {
-              fullNameAr: '',
-              fullNameEn: '',
-              nationalId: '',
-            },
-          },
         },
         include: {
           profile: true,
         },
       });
+
+      if (!draft) {
+        // 🧠 إنشاء draft جديد + profile تلقائي
+        draft = await this.prisma.application.create({
+          data: {
+            userId,
+            status: 'DRAFT',
+            profile: {
+              create: {
+                fullNameAr: '',
+                fullNameEn: '',
+                nationalId: '',
+              },
+            },
+          },
+          include: {
+            profile: true,
+          },
+        });
+      }
+
+      return draft;
+    } catch (error) {
+      console.error('getOrCreateDraft ERROR:', error);
+
+      throw new InternalServerErrorException({
+        message: 'Failed to get or create draft',
+        details: error?.message,
+      });
     }
-
-    return draft;
-  } catch (error) {
-    console.error('getOrCreateDraft ERROR:', error);
-
-    throw new InternalServerErrorException({
-      message: 'Failed to get or create draft',
-      details: error?.message,
-    });
   }
-}
 
   // =========================
   // UPDATE STEP (Draft / Autosave)
@@ -840,100 +840,103 @@ export class ApplicationsService {
     return updated;
   }
 
-	async updateDraftStep(
-  userId: string,
-  step: string,
-  data: any,
-) {
-  try {
-    const draft = await this.getOrCreateDraft(userId);
+  async updateDraftStep(userId: string, step: string, data: any) {
+    console.log(
+      'updateDraftStep called with userId:',
+      userId,
+      'step:',
+      step,
+      'data:',
+      JSON.stringify(data, null, 2),
+    );
+    try {
+      const draft = await this.getOrCreateDraft(userId);
+      console.log('Draft found/created:', draft);
 
-    switch (step) {
-      case 'personal':
-        return await this.prisma.profile.update({
-          where: { id: draft.profileId },
-          data: {
-            fullNameAr: data.fullName,
-            fullNameEn: data.fullNameEn,
-            nationalId: data.nationalId,
-            phone: data.phoneNumber,
-            dateOfBirth: data.birthDate
-              ? new Date(data.birthDate)
-              : null,
-            gender: data.gender,
-            address: data.address,
-            city: data.city,
-            country: data.country,
-            specialization: data.specialization,
-            graduationYear: data.graduationYear,
-            university: data.university,
-          },
-        });
+      switch (step) {
+        case 'personal':
+          return await this.prisma.profile.update({
+            where: { id: draft.profileId },
+            data: {
+              fullNameAr: data.fullName,
+              fullNameEn: data.fullNameEn,
+              nationalId: data.nationalId,
+              phone: data.phoneNumber,
+              dateOfBirth: data.birthDate ? new Date(data.birthDate) : null,
+              gender: data.gender,
+              address: data.address,
+              city: data.city,
+              country: data.country,
+              specialization: data.specialization,
+              graduationYear: data.graduationYear,
+              university: data.university,
+            },
+          });
 
-      case 'education':
-        // 🧹 حذف القديم + إضافة الجديد (clean sync)
-        await this.prisma.education.deleteMany({
-          where: { profileId: draft.profileId },
-        });
+        case 'education':
+          // 🧹 حذف القديم + إضافة الجديد (clean sync)
+          await this.prisma.education.deleteMany({
+            where: { profileId: draft.profileId },
+          });
 
-        return await this.prisma.education.createMany({
-          data: data.map((edu) => ({
-            ...edu,
-            profileId: draft.profileId,
-          })),
-        });
+          return await this.prisma.education.createMany({
+            data: data.map((edu) => ({
+              ...edu,
+              profileId: draft.profileId,
+            })),
+          });
 
-      case 'experience':
-        await this.prisma.experience.deleteMany({
-          where: { profileId: draft.profileId },
-        });
+        case 'experience':
+          await this.prisma.experience.deleteMany({
+            where: { profileId: draft.profileId },
+          });
 
-        return await this.prisma.experience.createMany({
-          data: data.map((exp) => ({
-            ...exp,
-            profileId: draft.profileId,
-            startDate: new Date(exp.startDate),
-            endDate: exp.endDate ? new Date(exp.endDate) : null,
-          })),
-        });
+          return await this.prisma.experience.createMany({
+            data: data.map((exp) => ({
+              ...exp,
+              profileId: draft.profileId,
+              startDate: new Date(exp.startDate),
+              endDate: exp.endDate ? new Date(exp.endDate) : null,
+            })),
+          });
 
-      case 'documents':
-        await this.prisma.document.deleteMany({
-          where: { applicationId: draft.id },
-        });
+        case 'documents':
+          await this.prisma.document.deleteMany({
+            where: { applicationId: draft.id },
+          });
 
-        return await this.prisma.document.createMany({
-          data: data.map((doc) => ({
-            ...doc,
-            userId,
-            applicationId: draft.id,
-          })),
-        });
+          return await this.prisma.document.createMany({
+            data: data.map((doc) => ({
+              ...doc,
+              userId,
+              applicationId: draft.id,
+            })),
+          });
 
-      case 'certifications':
-        await this.prisma.certification.deleteMany({
-          where: { profileId: draft.profileId },
-        });
+        case 'certifications':
+          await this.prisma.certification.deleteMany({
+            where: { profileId: draft.profileId },
+          });
 
-        return await this.prisma.certification.createMany({
-          data: data.map((cert) => ({
-            ...cert,
-            profileId: draft.profileId,
-          })),
-        });
+          return await this.prisma.certification.createMany({
+            data: data.map((cert) => ({
+              ...cert,
+              profileId: draft.profileId,
+            })),
+          });
 
-      default:
-        throw new BadRequestException('Invalid step');
+        default:
+          throw new BadRequestException('Invalid step');
+      }
+    } catch (error) {
+      console.error('updateDraftStep ERROR:', error);
+
+      throw new InternalServerErrorException({
+        message: `Failed to update step: ${step}`,
+        details: error?.message,
+      });
     }
-  } catch (error) {
-    console.error('updateDraftStep ERROR:', error);
-
-    throw new InternalServerErrorException({
-      message: `Failed to update step: ${step}`,
-      details: error?.message,
-    });
   }
-}
   // =========================
   // REVIEW & DECISION
   // =========================
@@ -999,42 +1002,42 @@ export class ApplicationsService {
       orderBy: { createdAt: 'asc' },
     });
   }
-  
+
   async submitApplication(userId: string) {
-  try {
-    const draft = await this.prisma.application.findFirst({
-      where: {
-        userId,
-        status: 'DRAFT',
-      },
-      include: {
-        profile: true,
-      },
-    });
+    try {
+      const draft = await this.prisma.application.findFirst({
+        where: {
+          userId,
+          status: 'DRAFT',
+        },
+        include: {
+          profile: true,
+        },
+      });
 
-    if (!draft) {
-      throw new NotFoundException('Draft not found');
+      if (!draft) {
+        throw new NotFoundException('Draft not found');
+      }
+
+      // 🧠 Validation قبل الإرسال (مهم جداً)
+      if (!draft.profile?.fullNameAr || !draft.profile?.nationalId) {
+        throw new BadRequestException('Profile is incomplete');
+      }
+
+      return await this.prisma.application.update({
+        where: { id: draft.id },
+        data: {
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error('submitApplication ERROR:', error);
+
+      throw new InternalServerErrorException({
+        message: 'Failed to submit application',
+        details: error?.message,
+      });
     }
-
-    // 🧠 Validation قبل الإرسال (مهم جداً)
-    if (!draft.profile?.fullNameAr || !draft.profile?.nationalId) {
-      throw new BadRequestException('Profile is incomplete');
-    }
-
-    return await this.prisma.application.update({
-      where: { id: draft.id },
-      data: {
-        status: 'SUBMITTED',
-        submittedAt: new Date(),
-      },
-    });
-  } catch (error) {
-    console.error('submitApplication ERROR:', error);
-
-    throw new InternalServerErrorException({
-      message: 'Failed to submit application',
-      details: error?.message,
-    });
   }
-}
 }

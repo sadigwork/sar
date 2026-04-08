@@ -96,7 +96,7 @@ export class UsersService {
       firstName: string;
       lastName: string;
       password: string;
-      role: string;
+      role: Role;
       isActive: boolean;
       refreshToken: string | null;
     }>,

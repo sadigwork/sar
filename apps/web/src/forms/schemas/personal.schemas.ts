@@ -1,0 +1,15 @@
+export const personalSchema = [
+  { name: 'fullName', label: 'Full Name', type: 'text' },
+  { name: 'fullNameEn', label: 'Full Name (EN)', type: 'text' },
+  { name: 'nationalId', label: 'National ID', type: 'text' },
+  { name: 'birthDate', label: 'Birth Date', type: 'date' },
+  { name: 'address', label: 'Address', type: 'text' },
+  { name: 'city', label: 'City', type: 'text' },
+  { name: 'country', label: 'Country', type: 'text' },
+  { name: 'postalCode', label: 'Postal Code', type: 'text' },
+  { name: 'phoneNumber', label: 'Phone', type: 'text' },
+  { name: 'email', label: 'Email', type: 'email' },
+  { name: 'specialization', label: 'Specialization', type: 'text' },
+  { name: 'graduationYear', label: 'Graduation Year', type: 'number' },
+  { name: 'university', label: 'University', type: 'text' },
+];

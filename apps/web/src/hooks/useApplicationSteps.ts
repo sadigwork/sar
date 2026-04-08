@@ -1,45 +1,46 @@
 import { useState } from 'react';
-
-export const steps = [
-  'personal',
-  'education',
-  'experience',
-  'documents',
-  'certifications',
-  'review',
-] as const;
+import { APPLICATION_STEPS } from '@/constants/applicationSteps';
 
 export function useApplicationSteps() {
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const currentStep = steps[currentStepIndex];
+  const currentStep = APPLICATION_STEPS[currentIndex];
 
   const next = () => {
-    if (currentStepIndex < steps.length - 1) {
-      setCurrentStepIndex((i) => i + 1);
+    if (currentIndex < APPLICATION_STEPS.length - 1) {
+      setCurrentIndex((i) => i + 1);
     }
   };
 
-  const back = () => {
-    if (currentStepIndex > 0) {
-      setCurrentStepIndex((i) => i - 1);
+  const prev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex((i) => i - 1);
     }
   };
 
-  const goTo = (step: (typeof steps)[number]) => {
-    const index = steps.indexOf(step);
-    if (index !== -1) setCurrentStepIndex(index);
-  };
+  const goTo = (indexOrId: number | string) => {
+    if (typeof indexOrId === 'number') {
+      if (indexOrId < 0 || indexOrId >= APPLICATION_STEPS.length) return;
+      setCurrentIndex(indexOrId);
+      return;
+    }
 
-  const progress = ((currentStepIndex + 1) / steps.length) * 100;
+    const nextIndex = APPLICATION_STEPS.findIndex(
+      (step) => step.id === indexOrId,
+    );
+    if (nextIndex !== -1) {
+      setCurrentIndex(nextIndex);
+    }
+  };
 
   return {
-    steps,
+    steps: APPLICATION_STEPS,
     currentStep,
-    currentStepIndex,
+    currentIndex,
     next,
-    back,
+    prev,
+    back: prev,
     goTo,
-    progress,
+    isLast: currentIndex === APPLICATION_STEPS.length - 1,
   };
 }

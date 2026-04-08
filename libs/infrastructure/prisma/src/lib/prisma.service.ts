@@ -1,10 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = global as unknown as {
-  prisma: PrismaClient;
-};
-
 @Injectable()
 export class PrismaService
   extends PrismaClient
@@ -17,13 +13,6 @@ export class PrismaService
           ? ['query', 'info', 'warn', 'error']
           : ['error'],
     });
-
-    if (process.env.NODE_ENV !== 'production') {
-      if (!globalForPrisma.prisma) {
-        globalForPrisma.prisma = this;
-      }
-      return globalForPrisma.prisma;
-    }
   }
 
   async onModuleInit() {
